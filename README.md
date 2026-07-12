@@ -45,6 +45,22 @@ npm run search
 node packages/job-search/scripts/import-indeed.mjs
 ```
 
+## Hourly scheduler — on/off
+
+The pipeline can run automatically every hour (macOS `launchd`). Toggle it with:
+
+```bash
+npm run schedule:on       # turn hourly runs ON
+npm run schedule:off      # turn hourly runs OFF
+npm run schedule:now      # run once, right now
+npm run schedule:status   # check if it's on
+```
+
+`off` persists across reboots. Scheduled runs require the laptop to be **awake
+and logged in** (a headed Chrome window opens briefly each run — Indeed blocks
+headless). See the [job-search README](packages/job-search/README.md#hourly-scheduling-macos-launchd)
+for setup details and caveats.
+
 ## Captured data
 
 - [`packages/job-search/data/indeed-software-engineer-remote.json`](packages/job-search/data/indeed-software-engineer-remote.json)
