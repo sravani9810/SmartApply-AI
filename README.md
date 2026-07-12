@@ -45,6 +45,19 @@ npm run search
 node packages/job-search/scripts/import-indeed.mjs
 ```
 
+## Update your search (job title & location)
+
+Search preferences live in `.env` — no code editing, no rebuild:
+
+```bash
+JOB_KEYWORDS=software engineer, typescript   # job title / keywords
+JOB_LOCATION=Remote                          # e.g. "Bengaluru, India", "New York, NY"
+JOB_POSTED_WITHIN_DAYS=7                      # recency filter
+```
+
+Edit `.env`, save, and the next run picks it up. (Copy `.env.example` to `.env`
+if you haven't yet.)
+
 ## Hourly scheduler — on/off
 
 The pipeline can run automatically every hour (macOS `launchd`). Toggle it with:

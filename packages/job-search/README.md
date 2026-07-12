@@ -97,19 +97,20 @@ from your config, extracts the postings, and writes them to `data/jobs.xlsx`
 (and Google Sheets, if configured). De-dup is by `id`, so only genuinely new
 postings are added on later runs.
 
-### What is searched
+### What is searched — update your preferences
 
-Search terms come from [`src/config.ts`](src/config.ts):
+Search terms come from your `.env` (no code editing, no rebuild — they're read at
+run time):
 
-```ts
-query: {
-  keywords: ["software engineer", "typescript"],  // -> Indeed "what"
-  location: "Remote",                             // -> Indeed "where"
-  postedWithinDays: 7,                            // -> Indeed "fromage" (max age)
-}
+```bash
+JOB_KEYWORDS=software engineer, typescript   # job title / keywords (comma-separated)
+JOB_LOCATION=Remote                          # "Remote", "Bengaluru, India", "New York, NY", …
+JOB_POSTED_WITHIN_DAYS=7                      # only jobs posted within N days
 ```
 
-Edit those to change the search, then `npm run build && npm run search`.
+Change a value, save `.env`, and the next run (manual `npm run search` or the
+next hourly run) uses it. Defaults apply when a variable is unset. These map to
+Indeed's "what" / "where" / recency filters.
 
 ### Headed only — Cloudflare blocks headless
 

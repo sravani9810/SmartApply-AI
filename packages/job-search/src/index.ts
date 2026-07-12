@@ -10,7 +10,7 @@ loadEnv({ path: resolve(here, "../../../.env") });
 loadEnv(); // cwd/.env, does not override already-set vars
 
 import type { JobPosting } from "@smartapply/shared";
-import { config } from "./config.js";
+import { getConfig } from "./config.js";
 import { getActiveBoards } from "./boards/index.js";
 import { enrichRecruiterContact } from "./recruiter/enrich.js";
 import { saveJobs } from "./excel/workbook.js";
@@ -23,7 +23,12 @@ import { googleSheetsConfigFromEnv, syncToGoogleSheet } from "./sheets/gsheet.js
  * Intended to be invoked on a schedule (e.g. hourly cron on the local machine).
  */
 export async function runJobSearch(): Promise<JobPosting[]> {
+  const config = getConfig();
   const collected: JobPosting[] = [];
+  console.log(
+    `[job-search] searching "${config.query.keywords.join(", ")}" in ` +
+      `"${config.query.location}" (posted within ${config.query.postedWithinDays}d)`,
+  );
 
   for (const board of getActiveBoards()) {
     let postings: JobPosting[];
