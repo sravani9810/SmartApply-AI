@@ -1,3 +1,4 @@
+import "dotenv/config"; // load .env before anything reads process.env
 import type { JobPosting } from "@smartapply/shared";
 import { config } from "./config.js";
 import { boards } from "./boards/index.js";
