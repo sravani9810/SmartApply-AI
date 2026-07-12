@@ -1,4 +1,14 @@
-import "dotenv/config"; // load .env before anything reads process.env
+import { config as loadEnv } from "dotenv";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+
+// Load .env before anything reads process.env. npm workspace scripts run with
+// cwd set to the package dir, so resolve the repo-root .env from this file's
+// location (dist/index.js -> ../../../.env); also fall back to cwd/.env.
+const here = dirname(fileURLToPath(import.meta.url));
+loadEnv({ path: resolve(here, "../../../.env") });
+loadEnv(); // cwd/.env, does not override already-set vars
+
 import type { JobPosting } from "@smartapply/shared";
 import { config } from "./config.js";
 import { boards } from "./boards/index.js";
