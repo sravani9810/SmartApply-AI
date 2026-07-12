@@ -66,3 +66,49 @@ export function flatten(job: JobPosting): FlatRow {
 export function toRowArray(row: FlatRow): Array<string | number> {
   return COLUMNS.map((c) => row[c.key]);
 }
+
+/** Parse a Sheets/CSV-style row array back into a partial flat row (by column order). */
+export function rowArrayToPartial(
+  values: Array<string | number | null | undefined>,
+): Partial<FlatRow> {
+  const p: Record<string, unknown> = {};
+  COLUMNS.forEach((c, i) => {
+    const v = values[i];
+    if (v !== undefined && v !== null) p[c.key] = v;
+  });
+  return p as Partial<FlatRow>;
+}
+
+// Fields owned by the workflow/user (not the job board). On an existing row
+// these are kept as-is so hourly re-fetches never clobber them.
+const PRESERVE_ON_UPDATE: Array<keyof FlatRow> = ["status", "fitScore", "capturedAt"];
+const RECRUITER_KEYS: Array<keyof FlatRow> = [
+  "recruiterName",
+  "recruiterEmail",
+  "recruiterPhone",
+];
+
+/**
+ * Merge a freshly fetched row over an existing one so re-fetching a known job
+ * refreshes board-owned fields (title, company, link, dates) while preserving:
+ *   - Status  — your manual application state
+ *   - Fit Score — computed by the resume matcher
+ *   - Captured At — first-seen timestamp
+ *   - Recruiter details already filled in (kept when the new fetch has none)
+ */
+export function mergePreserving(
+  incoming: FlatRow,
+  existing: Partial<FlatRow>,
+): FlatRow {
+  const merged: Record<string, unknown> = { ...incoming };
+  for (const k of PRESERVE_ON_UPDATE) {
+    const ev = existing[k];
+    if (ev !== undefined && ev !== "") merged[k] = ev;
+  }
+  for (const k of RECRUITER_KEYS) {
+    if ((merged[k] === undefined || merged[k] === "") && existing[k]) {
+      merged[k] = existing[k];
+    }
+  }
+  return merged as unknown as FlatRow;
+}

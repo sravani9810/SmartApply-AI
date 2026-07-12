@@ -1,6 +1,13 @@
 import { google, type sheets_v4 } from "googleapis";
 import type { JobPosting } from "@smartapply/shared";
-import { HEADERS, flatten, toRowArray } from "../columns.js";
+import {
+  HEADERS,
+  flatten,
+  toRowArray,
+  rowArrayToPartial,
+  mergePreserving,
+  type FlatRow,
+} from "../columns.js";
 
 /**
  * Google Sheets sink. Mirrors the Excel writer: one row per job, keyed by the
@@ -64,18 +71,20 @@ export async function syncToGoogleSheet(
   const api = await getClient(cfg);
   await ensureSheet(api, cfg);
 
-  // Read existing IDs (column A) to build an id -> rowNumber map.
+  // Read the full existing grid so we can preserve workflow-owned columns
+  // (Status, Fit Score, Captured At) on rows we already have.
+  const lastCol = String.fromCharCode("A".charCodeAt(0) + HEADERS.length - 1);
   const existing = await api.spreadsheets.values.get({
     spreadsheetId: cfg.spreadsheetId,
-    range: `${cfg.sheetName}!A:A`,
+    range: `${cfg.sheetName}!A:${lastCol}`,
   });
-  const colA = existing.data.values ?? [];
-  const hasHeader = colA.length > 0 && colA[0]?.[0] === HEADERS[0];
-  const idToRow = new Map<string, number>();
-  colA.forEach((r, i) => {
+  const grid = existing.data.values ?? [];
+  const hasHeader = grid.length > 0 && grid[0]?.[0] === HEADERS[0];
+  const idToRow = new Map<string, { rowNumber: number; partial: Partial<FlatRow> }>();
+  grid.forEach((r, i) => {
     if (i === 0 && hasHeader) return;
     const id = r?.[0];
-    if (id) idToRow.set(String(id), i + 1); // 1-based row number
+    if (id) idToRow.set(String(id), { rowNumber: i + 1, partial: rowArrayToPartial(r) });
   });
 
   const updates: sheets_v4.Schema$ValueRange[] = [];
@@ -87,12 +96,13 @@ export async function syncToGoogleSheet(
   }
 
   for (const job of postings) {
-    const values = toRowArray(flatten(job));
-    const row = idToRow.get(job.id);
-    if (row) {
-      updates.push({ range: rowRange(cfg.sheetName, row), values: [values] });
+    const incoming = flatten(job);
+    const hit = idToRow.get(job.id);
+    if (hit) {
+      const values = toRowArray(mergePreserving(incoming, hit.partial));
+      updates.push({ range: rowRange(cfg.sheetName, hit.rowNumber), values: [values] });
     } else {
-      appends.push(values);
+      appends.push(toRowArray(incoming));
     }
   }
 

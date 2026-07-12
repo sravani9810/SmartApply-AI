@@ -2,7 +2,7 @@ import { dirname } from "node:path";
 import { mkdir } from "node:fs/promises";
 import ExcelJS from "exceljs";
 import type { JobPosting } from "@smartapply/shared";
-import { COLUMNS, flatten } from "../columns.js";
+import { COLUMNS, flatten, mergePreserving, type FlatRow } from "../columns.js";
 
 /**
  * Persists discovered postings into a structured Excel workbook, one row per
@@ -44,6 +44,16 @@ function findRowById(sheet: ExcelJS.Worksheet, id: string): ExcelJS.Row | undefi
   return found;
 }
 
+/** Read an existing worksheet row into a partial flat row (by column key). */
+function rowToPartial(row: ExcelJS.Row): Partial<FlatRow> {
+  const p: Record<string, unknown> = {};
+  COLUMNS.forEach((c, i) => {
+    const v = row.getCell(i + 1).value;
+    if (v !== null && v !== undefined) p[c.key] = v;
+  });
+  return p as Partial<FlatRow>;
+}
+
 /** Upsert the given postings into the workbook and save it to disk. */
 export async function saveJobs(postings: JobPosting[], path: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
@@ -54,7 +64,9 @@ export async function saveJobs(postings: JobPosting[], path: string): Promise<vo
     const row = flatten(job);
     const existing = findRowById(sheet, job.id);
     if (existing) {
-      existing.values = { ...(existing.values as object), ...row };
+      // Preserve workflow-owned fields (status, fit, first-seen) on re-fetch.
+      const merged = mergePreserving(row, rowToPartial(existing));
+      existing.values = { ...(existing.values as object), ...merged };
       existing.commit();
     } else {
       sheet.addRow(row).commit();
