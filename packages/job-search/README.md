@@ -171,12 +171,23 @@ launchctl start com.smartapply.jobsearch # run once now to test
 tail -f ~/Library/Logs/smartapply/hourly.log
 ```
 
-### Manage
+### Turn it on / off
+
+Convenience scripts wrap the `launchctl` commands:
 
 ```bash
-# stop / disable
-launchctl unload -w ~/Library/LaunchAgents/com.smartapply.jobsearch.plist
-# after editing the plist: unload then load again
+npm run schedule:on       # install + enable hourly runs
+npm run schedule:off      # disable hourly runs (persists across reboots)
+npm run schedule:now      # run once immediately
+npm run schedule:status   # is it currently on?
+```
+
+Equivalent raw commands:
+
+```bash
+launchctl load -w   ~/Library/LaunchAgents/com.smartapply.jobsearch.plist  # on
+launchctl unload -w ~/Library/LaunchAgents/com.smartapply.jobsearch.plist  # off
+launchctl start com.smartapply.jobsearch                                   # run now
 ```
 
 ### Caveats
