@@ -10,7 +10,8 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "tsc --build",
     "search": "npm run start --workspace @smartapply/job-search",
-    "match": "npm run start --workspace @smartapply/resume-matcher"
+    "login:indeed": "npm run login:indeed --workspace @smartapply/job-search",
+    "import:indeed": "npm run import:indeed --workspace @smartapply/job-search"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

@@ -10,5 +10,9 @@ dist/
 # Chrome extension build
 packages/autofill-extension/dist/
 
+# Playwright browser profile (holds your logged-in session cookies)
+.browser-profile/
+chrome-profile/
+
 # OS
 .DS_Store
