@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Runtime output / secrets
+.env
+.env.local
+*.xlsx
+
+# Chrome extension build
+packages/autofill-extension/dist/
+
+# OS
+.DS_Store

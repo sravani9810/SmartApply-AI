@@ -1,0 +1,17 @@
+{
+  "name": "@smartapply/job-search",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "start": "node dist/index.js",
+    "import:indeed": "node scripts/import-indeed.mjs"
+  },
+  "dependencies": {
+    "@smartapply/shared": "*",
+    "exceljs": "^4.4.0"
+  }
+}
