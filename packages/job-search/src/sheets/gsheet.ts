@@ -115,12 +115,21 @@ export async function syncToGoogleSheet(
   return { updated: updates.length - (hasHeader ? 0 : 1), appended: appends.length };
 }
 
+/**
+ * Accept either a bare spreadsheet ID or a full sheet URL and return the ID.
+ * `https://docs.google.com/spreadsheets/d/<ID>/edit#gid=0` -> `<ID>`.
+ */
+export function extractSpreadsheetId(value: string): string {
+  const m = value.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : value.trim();
+}
+
 /** Build a GoogleSheetsConfig from env, or return undefined if not configured. */
 export function googleSheetsConfigFromEnv(): GoogleSheetsConfig | undefined {
-  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) return undefined;
+  const raw = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+  if (!raw) return undefined;
   return {
-    spreadsheetId,
+    spreadsheetId: extractSpreadsheetId(raw),
     sheetName: process.env.GOOGLE_SHEETS_TAB ?? "Jobs",
     keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
   };
