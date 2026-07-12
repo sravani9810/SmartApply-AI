@@ -34,7 +34,10 @@ export function indeedProfileDir(): string {
 }
 
 function headless(): boolean {
-  return process.env.INDEED_HEADLESS !== "false";
+  // Indeed's Cloudflare protection HARD-BLOCKS headless Chrome ("You have been
+  // blocked"), so we default to headed. Setting INDEED_HEADLESS=true is only for
+  // debugging and will be blocked.
+  return process.env.INDEED_HEADLESS === "true";
 }
 
 function buildSearchUrl(q: JobSearchQuery): string {
@@ -53,6 +56,9 @@ export const indeedBrowserBoard: JobBoardConnector = {
       headless: headless(),
       channel: "chrome", // use the installed Google Chrome, not bundled Chromium
       viewport: { width: 1280, height: 900 },
+      // Hide the automation fingerprint (navigator.webdriver) so Cloudflare's
+      // managed challenge auto-clears instead of hard-blocking.
+      args: ["--disable-blink-features=AutomationControlled"],
     });
     try {
       const page = context.pages()[0] ?? (await context.newPage());
@@ -61,26 +67,26 @@ export const indeedBrowserBoard: JobBoardConnector = {
         timeout: 45_000,
       });
 
-      // Let results render, then wait (best-effort) for at least one job card.
-      await page
-        .waitForSelector('a[href*="jk="]', { timeout: 15_000 })
-        .catch(() => undefined);
-
-      // Detect a login / bot-verification wall (no job links + prompt text).
-      const blocked = await page.evaluate(() => {
-        const hasJobs =
-          document.querySelectorAll('a[href*="jk="], a[data-jk]').length > 0;
-        const t = document.body.innerText.toLowerCase();
-        const wall =
-          /verify you are human|are you a robot|additional verification|sign in to continue|log in to continue/.test(
-            t,
-          );
-        return !hasJobs && wall;
-      });
-      if (blocked) {
+      // Indeed sits behind Cloudflare. On load it may show a "Just a moment…"
+      // challenge that resolves itself after a few seconds. Poll for job cards
+      // to appear (challenge cleared) before extracting.
+      let cleared = false;
+      for (let i = 0; i < 25; i++) {
+        const n = await page.evaluate(
+          () => document.querySelectorAll('a[href*="jk="], a[data-jk]').length,
+        );
+        if (n > 0) {
+          cleared = true;
+          break;
+        }
+        await page.waitForTimeout(1000);
+      }
+      if (!cleared) {
+        const title = await page.title();
         throw new Error(
-          "Indeed is showing a login/verification wall. Run `npm run login:indeed`, " +
-            "sign in, then retry. (If it persists, set INDEED_HEADLESS=false to watch.)",
+          `Indeed returned no results (page: "${title}"). Likely a Cloudflare ` +
+            `bot block: ensure INDEED_HEADLESS is not "true" (headless is blocked) ` +
+            `and that you are logged in via \`npm run login:indeed\`.`,
         );
       }
 

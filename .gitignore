@@ -16,3 +16,6 @@ chrome-profile/
 
 # OS
 .DS_Store
+
+# launchd hourly run logs
+logs/

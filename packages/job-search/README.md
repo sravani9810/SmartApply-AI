@@ -111,16 +111,26 @@ query: {
 
 Edit those to change the search, then `npm run build && npm run search`.
 
+### Headed only — Cloudflare blocks headless
+
+Indeed is behind **Cloudflare bot protection**. Headless Chrome is hard-blocked
+("You have been blocked"), even with a logged-in session. The connector therefore
+runs **headed** (a real Chrome window) with the automation fingerprint hidden
+(`--disable-blink-features=AutomationControlled`) and waits for Cloudflare's
+"Just a moment…" challenge to auto-clear before reading results.
+
+Consequence: **a Chrome window appears briefly on each run** (including scheduled
+runs). Do not set `INDEED_HEADLESS=true` — it will be blocked.
+
 ### Troubleshooting
 
-- **"Indeed is showing a login/verification wall"** — your session expired or
-  Indeed wants a check. Re-run `npm run login:indeed`, sign in, retry. Set
-  `INDEED_HEADLESS=false` in `.env` to watch what's happening.
+- **"Indeed returned no results … Cloudflare bot block"** — make sure
+  `INDEED_HEADLESS` is not `true`, and that you are logged in
+  (`npm run login:indeed`). If it persists, run `npm run search` and watch the
+  window complete the challenge.
 - **"Executable doesn't exist" / Chrome not found** — install Google Chrome, or
   switch the connector to bundled Chromium (`npx playwright install chromium`
   and remove `channel: "chrome"` in `src/boards/indeed-browser.ts`).
-- **Empty results** — the profile may not be logged in, or the search returned
-  nothing. Run headed to confirm.
 - **Recruiter contact / dates are blank** — Indeed's list view doesn't expose
   recruiter email/phone, posted date, or an end date. Those columns stay empty
   for Indeed rows.
@@ -132,7 +142,50 @@ Edit those to change the search, then `npm run build && npm run search`.
   account.
 - The Chrome profile holds your login — it is gitignored (`chrome-profile/`) and
   lives outside the repo by default. Don't commit or share it.
-- Hourly scheduling (cron / launchd) is a separate step — not yet wired up.
+
+## Hourly scheduling (macOS launchd)
+
+Runs `runJobSearch()` at the top of every hour via a launchd **LaunchAgent**.
+
+### Important: the project must live outside `~/Desktop`
+
+macOS **TCC** denies launchd agents access to `~/Desktop`, `~/Documents`, and
+`~/Downloads`. If the repo (or the Google service-account key) is under one of
+those, the scheduled job fails with `EX_CONFIG` / `Operation not permitted`. Keep
+the project somewhere like `~/SmartApply-AI` and the key under `~/.config/`.
+
+### Files
+
+- [`packages/job-search/scripts/run-hourly.sh`](scripts/run-hourly.sh) — builds
+  then runs the pipeline; logs to `~/Library/Logs/smartapply/hourly.log`.
+- [`deploy/com.smartapply.jobsearch.plist`](../../deploy/com.smartapply.jobsearch.plist)
+  — the LaunchAgent (paths are machine-specific; edit if your repo path differs).
+
+### Install
+
+```bash
+cp deploy/com.smartapply.jobsearch.plist ~/Library/LaunchAgents/
+launchctl load -w ~/Library/LaunchAgents/com.smartapply.jobsearch.plist
+launchctl list | grep smartapply        # confirm it's registered
+launchctl start com.smartapply.jobsearch # run once now to test
+tail -f ~/Library/Logs/smartapply/hourly.log
+```
+
+### Manage
+
+```bash
+# stop / disable
+launchctl unload -w ~/Library/LaunchAgents/com.smartapply.jobsearch.plist
+# after editing the plist: unload then load again
+```
+
+### Caveats
+
+- **A Chrome window appears each hour** (headed is required — see above).
+- The machine must be **awake and logged in** for the agent to fire. If it was
+  asleep at the top of the hour, launchd runs the job once on wake.
+- Runs are idempotent: dedup by `id`, and workflow columns (Status, Fit Score,
+  Captured At) are preserved across runs.
 
 ## Google Sheets sync (optional)
 

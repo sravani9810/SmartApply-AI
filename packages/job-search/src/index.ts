@@ -11,7 +11,7 @@ loadEnv(); // cwd/.env, does not override already-set vars
 
 import type { JobPosting } from "@smartapply/shared";
 import { config } from "./config.js";
-import { boards } from "./boards/index.js";
+import { getActiveBoards } from "./boards/index.js";
 import { enrichRecruiterContact } from "./recruiter/enrich.js";
 import { saveJobs } from "./excel/workbook.js";
 import { googleSheetsConfigFromEnv, syncToGoogleSheet } from "./sheets/gsheet.js";
@@ -25,7 +25,7 @@ import { googleSheetsConfigFromEnv, syncToGoogleSheet } from "./sheets/gsheet.js
 export async function runJobSearch(): Promise<JobPosting[]> {
   const collected: JobPosting[] = [];
 
-  for (const board of boards) {
+  for (const board of getActiveBoards()) {
     let postings: JobPosting[];
     try {
       postings = await board.search(config.query);
