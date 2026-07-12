@@ -3,6 +3,7 @@ import { config } from "./config.js";
 import { boards } from "./boards/index.js";
 import { enrichRecruiterContact } from "./recruiter/enrich.js";
 import { saveJobs } from "./excel/workbook.js";
+import { googleSheetsConfigFromEnv, syncToGoogleSheet } from "./sheets/gsheet.js";
 
 /**
  * Part 1 orchestrator: search every configured board, enrich each posting with
@@ -30,6 +31,22 @@ export async function runJobSearch(): Promise<JobPosting[]> {
   console.log(
     `[job-search] saved ${collected.length} posting(s) to ${config.workbookPath}`,
   );
+
+  // Optional Google Sheets sync — runs only when GOOGLE_SHEETS_SPREADSHEET_ID
+  // is set, so the pipeline stays local-only by default.
+  const gsheet = googleSheetsConfigFromEnv();
+  if (gsheet) {
+    try {
+      const { updated, appended } = await syncToGoogleSheet(collected, gsheet);
+      console.log(
+        `[job-search] synced to Google Sheet ${gsheet.spreadsheetId} ` +
+          `(${appended} new, ${updated} updated)`,
+      );
+    } catch (err) {
+      console.error("[job-search] Google Sheets sync failed:", err);
+    }
+  }
+
   return collected;
 }
 

@@ -2,70 +2,15 @@ import { dirname } from "node:path";
 import { mkdir } from "node:fs/promises";
 import ExcelJS from "exceljs";
 import type { JobPosting } from "@smartapply/shared";
+import { COLUMNS, flatten } from "../columns.js";
 
 /**
  * Persists discovered postings into a structured Excel workbook, one row per
  * job. Rows are keyed by `id` so re-running the search updates existing rows
- * instead of duplicating them.
- *
- * Columns capture exactly what Part 1 must save: link, dates (posted / end),
- * and recruiter contact (email, phone), plus tracking fields (status, source,
- * fit).
+ * instead of duplicating them. The column schema lives in ../columns.ts and is
+ * shared with the Google Sheets sink.
  */
 const SHEET = "Jobs";
-
-const COLUMNS: Array<{ header: string; key: keyof FlatRow; width: number }> = [
-  { header: "ID", key: "id", width: 18 },
-  { header: "Title", key: "title", width: 30 },
-  { header: "Company", key: "company", width: 24 },
-  { header: "Location", key: "location", width: 18 },
-  { header: "Source", key: "source", width: 14 },
-  { header: "Link", key: "url", width: 40 },
-  { header: "Date Posted", key: "datePosted", width: 14 },
-  { header: "End Date", key: "endDate", width: 14 },
-  { header: "Recruiter", key: "recruiterName", width: 20 },
-  { header: "Recruiter Email", key: "recruiterEmail", width: 26 },
-  { header: "Recruiter Phone", key: "recruiterPhone", width: 18 },
-  { header: "Status", key: "status", width: 12 },
-  { header: "Fit Score", key: "fitScore", width: 10 },
-  { header: "Captured At", key: "capturedAt", width: 22 },
-];
-
-interface FlatRow {
-  id: string;
-  title: string;
-  company: string;
-  location: string;
-  source: string;
-  url: string;
-  datePosted: string;
-  endDate: string;
-  recruiterName: string;
-  recruiterEmail: string;
-  recruiterPhone: string;
-  status: string;
-  fitScore: number | "";
-  capturedAt: string;
-}
-
-function flatten(job: JobPosting): FlatRow {
-  return {
-    id: job.id,
-    title: job.title,
-    company: job.company,
-    location: job.location ?? "",
-    source: job.source,
-    url: job.url,
-    datePosted: job.datePosted ?? "",
-    endDate: job.endDate ?? "",
-    recruiterName: job.recruiter?.name ?? "",
-    recruiterEmail: job.recruiter?.email ?? "",
-    recruiterPhone: job.recruiter?.phone ?? "",
-    status: job.status ?? "new",
-    fitScore: job.fitScore ?? "",
-    capturedAt: job.capturedAt,
-  };
-}
 
 /** Load an existing workbook or create a new one with a formatted header row. */
 async function open(path: string): Promise<ExcelJS.Workbook> {
@@ -80,6 +25,12 @@ async function open(path: string): Promise<ExcelJS.Workbook> {
     sheet = wb.addWorksheet(SHEET);
     sheet.columns = COLUMNS.map((c) => ({ header: c.header, key: c.key, width: c.width }));
     sheet.getRow(1).font = { bold: true };
+  } else {
+    // ExcelJS doesn't persist column keys, so reassign them by position when a
+    // workbook is loaded from disk — otherwise getCell(key)/keyed values fail.
+    COLUMNS.forEach((c, i) => {
+      sheet!.getColumn(i + 1).key = c.key;
+    });
   }
   return wb;
 }
