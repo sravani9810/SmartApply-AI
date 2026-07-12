@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font: 13px system-ui, sans-serif; width: 260px; padding: 12px; }
+      label { display: block; margin: 6px 0 2px; color: #444; }
+      input { width: 100%; box-sizing: border-box; padding: 4px 6px; }
+      .row { display: flex; gap: 6px; margin-top: 10px; }
+      button { flex: 1; padding: 6px; cursor: pointer; }
+      #status { margin-top: 8px; color: #2a7; min-height: 16px; }
+    </style>
+  </head>
+  <body>
+    <strong>SmartApply Autofill</strong>
+    <label>First name</label><input id="firstName" />
+    <label>Last name</label><input id="lastName" />
+    <label>Email</label><input id="email" />
+    <label>Phone</label><input id="phone" />
+    <label>LinkedIn</label><input id="linkedin" />
+    <label>Website</label><input id="website" />
+    <div class="row">
+      <button id="save">Save</button>
+      <button id="fill">Fill</button>
+      <button id="fillSubmit">Fill &amp; Submit</button>
+    </div>
+    <div id="status"></div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
