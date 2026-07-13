@@ -1,31 +1,150 @@
 import { DEFAULT_PROFILE, loadProfile, saveProfile } from "./profile.js";
+import {
+  loadJobs,
+  importJobs,
+  getStatuses,
+  setStatus,
+  matchJobForUrl,
+  buildStatusUpdates,
+} from "./jobs.js";
+
+const $ = (id) => document.getElementById(id);
+const statusEl = $("status");
+
+/* ---------- profile (autofill) ---------- */
 
 const FIELDS = Object.keys(DEFAULT_PROFILE);
-const status = document.getElementById("status");
-
-function readForm() {
-  const profile = {};
-  for (const f of FIELDS) profile[f] = document.getElementById(f).value.trim();
-  return profile;
-}
-
-function writeForm(profile) {
-  for (const f of FIELDS) document.getElementById(f).value = profile[f] ?? "";
-}
+const readForm = () =>
+  Object.fromEntries(FIELDS.map((f) => [f, $(f).value.trim()]));
+const writeForm = (p) => FIELDS.forEach((f) => ($(f).value = p[f] ?? ""));
 
 async function autofill(submit) {
   await saveProfile(readForm());
   const res = await chrome.runtime.sendMessage({ type: "AUTOFILL_ACTIVE_TAB", submit });
-  status.textContent = res
+  statusEl.textContent = res
     ? `Filled ${res.filled} field(s)${res.submitted ? ", submitted" : ""}.`
     : "No response from page.";
 }
 
-document.getElementById("save").addEventListener("click", async () => {
+$("save").addEventListener("click", async () => {
   await saveProfile(readForm());
-  status.textContent = "Saved.";
+  statusEl.textContent = "Saved.";
 });
-document.getElementById("fill").addEventListener("click", () => autofill(false));
-document.getElementById("fillSubmit").addEventListener("click", () => autofill(true));
+$("fill").addEventListener("click", () => autofill(false));
+$("fillSubmit").addEventListener("click", () => autofill(true));
 
-loadProfile().then(writeForm);
+/* ---------- job context ---------- */
+
+let jobs = [];
+let statuses = {};
+let currentJob = null; // resolved from URL match or manual pick
+
+async function activeTabUrl() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab?.url ?? "";
+}
+
+function effectiveStatus(job) {
+  return statuses[job.id]?.status ?? job.status ?? "new";
+}
+
+function renderJob() {
+  const title = $("jobTitle");
+  const meta = $("jobMeta");
+  const statusLine = $("jobStatus");
+  const picker = $("jobPicker");
+  const canMark = Boolean(currentJob);
+  $("markApplied").disabled = !canMark;
+  $("markSkipped").disabled = !canMark;
+
+  if (jobs.length === 0) {
+    title.textContent = "No jobs loaded.";
+    title.className = "muted";
+    meta.textContent = "Load your jobs-export.json below.";
+    statusLine.textContent = "";
+    picker.hidden = true;
+    return;
+  }
+
+  if (currentJob) {
+    const s = effectiveStatus(currentJob);
+    title.textContent = currentJob.title;
+    title.className = "";
+    meta.textContent = `${currentJob.company}${currentJob.location ? " · " + currentJob.location : ""}`;
+    statusLine.innerHTML = `<span class="badge ${s}">${s}</span>`;
+  } else {
+    title.textContent = "Couldn't match this page to a job.";
+    title.className = "muted";
+    meta.textContent = "Pick the job you're applying to:";
+    statusLine.textContent = "";
+  }
+
+  // Manual picker always available as a fallback / override.
+  picker.hidden = false;
+  picker.innerHTML =
+    `<option value="">— pick a job —</option>` +
+    jobs
+      .map(
+        (j) =>
+          `<option value="${j.id}" ${currentJob && j.id === currentJob.id ? "selected" : ""}>` +
+          `${j.title} — ${j.company}</option>`,
+      )
+      .join("");
+}
+
+async function refreshCurrentJob() {
+  const url = await activeTabUrl();
+  currentJob = matchJobForUrl(url, jobs) ?? currentJob;
+  renderJob();
+}
+
+$("jobPicker").addEventListener("change", (e) => {
+  currentJob = jobs.find((j) => j.id === e.target.value) ?? null;
+  renderJob();
+});
+
+async function mark(status) {
+  if (!currentJob) return;
+  statuses[currentJob.id] = await setStatus(currentJob.id, status);
+  renderJob();
+  statusEl.textContent = `Marked "${currentJob.title}" as ${status}.`;
+}
+$("markApplied").addEventListener("click", () => mark("applied"));
+$("markSkipped").addEventListener("click", () => mark("skipped"));
+
+$("importJobs").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const count = await importJobs(await file.text());
+    jobs = await loadJobs();
+    await refreshCurrentJob();
+    statusEl.textContent = `Loaded ${count} job(s).`;
+  } catch (err) {
+    statusEl.textContent = `Import failed: ${err.message}`;
+  }
+});
+
+$("exportStatus").addEventListener("click", async () => {
+  const payload = buildStatusUpdates(await getStatuses());
+  if (payload.updates.length === 0) {
+    statusEl.textContent = "No status changes to export yet.";
+    return;
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "status-updates.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  statusEl.textContent = `Exported ${payload.updates.length} status update(s).`;
+});
+
+/* ---------- init ---------- */
+
+(async () => {
+  writeForm(await loadProfile());
+  jobs = await loadJobs();
+  statuses = await getStatuses();
+  await refreshCurrentJob();
+})();

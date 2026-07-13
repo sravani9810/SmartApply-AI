@@ -1,36 +1,33 @@
-# SmartApply-AI — Autofill Extension & Resume Matcher (Parts 2 & 3)
+# SmartApply-AI — Autofill Extension (Part 2)
 
-> This branch (`feature/autofill-resume-matcher`) contains **Parts 2 and 3**,
-> plus the shared data model. **Part 1** (job discovery + Excel logging) lives on
-> the `feature/job-search-excel` branch.
+> This branch (`feature/autofill-extension`) contains **Part 2**: the Chrome
+> autofill extension, plus the shared data model. **Part 1** (job discovery +
+> Excel/Sheets) lives on `feature/job-search-excel`; the resume matcher (Part 3)
+> lives on its own branch.
 
-## Part 2 — Autofill extension — [`packages/autofill-extension`](packages/autofill-extension)
-A Chrome (Manifest V3) extension that auto-fills — and optionally submits — job
-application forms from a saved applicant profile. Load `src/` as an unpacked
-extension; no build step.
+A Chrome (Manifest V3) extension that:
 
-## Part 3 — Resume matcher — [`packages/resume-matcher`](packages/resume-matcher)
-Scores a resume against a job description with Claude (`claude-opus-4-8`) and can
-tailor the resume to the JD. Returns a `MatchResult` whose `fitScore` feeds back
-into the Part 1 workbook.
+1. **Knows which job you're applying to** — it loads the jobs your Part 1
+   pipeline found (`jobs-export.json`), matches the current tab to a posting, and
+   lets you **track application status** (Applied / Skipped), which you export
+   back to the pipeline (`status-updates.json`).
+2. **Auto-fills** application forms from a saved profile — **Fill** or
+   **Fill & Submit**.
 
 ## Packages
 
 ```
 packages/
-  shared/              # common types (JobPosting, MatchResult, connectors)
-  autofill-extension/  # Part 2 — Chrome MV3 autofill
-  resume-matcher/      # Part 3 — AI JD/resume matching
+  shared/              # common types (JobPosting, JobsExport, StatusUpdates…)
+  autofill-extension/  # Part 2 — Chrome MV3 extension
 ```
 
-## Setup
+## Load it (unpacked)
 
-```bash
-npm install
-npm run build          # builds the TypeScript packages (Part 3 + shared)
-```
+1. `npm install` (only needed to build `shared`; the extension itself has no build)
+2. Open `chrome://extensions`, enable **Developer mode**
+3. **Load unpacked** → select `packages/autofill-extension/src`
+4. Pin it, load your jobs, fill in your profile, and go.
 
-- **Part 3:** `npm run match` (needs `ANTHROPIC_API_KEY`)
-- **Part 2:** load `packages/autofill-extension/src` at `chrome://extensions`
-
-Each package has its own README with details.
+See [`packages/autofill-extension`](packages/autofill-extension) for the full
+flow (job context, status tracking, autofill, and the pipeline contract).
