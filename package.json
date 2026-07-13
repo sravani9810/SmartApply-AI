@@ -8,9 +8,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "tsc --build",
-    "search": "npm run start --workspace @smartapply/job-search",
-    "match": "npm run start --workspace @smartapply/resume-matcher"
+    "typecheck": "tsc --build"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
