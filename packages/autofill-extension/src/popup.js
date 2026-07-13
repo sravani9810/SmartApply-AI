@@ -1,4 +1,10 @@
-import { DEFAULT_PROFILE, loadProfile, saveProfile } from "./profile.js";
+import {
+  PROFILE_FIELDS,
+  loadProfile,
+  saveProfile,
+  loadSettings,
+  saveSettings,
+} from "./profile.js";
 import {
   loadJobs,
   importJobs,
@@ -13,10 +19,24 @@ const statusEl = $("status");
 
 /* ---------- profile (autofill) ---------- */
 
-const FIELDS = Object.keys(DEFAULT_PROFILE);
+// Build the profile inputs from the field spec (keeps HTML and JS in sync).
+const container = $("profileFields");
+for (const f of PROFILE_FIELDS) {
+  const label = document.createElement("label");
+  label.textContent = f.label;
+  const input =
+    f.type === "textarea"
+      ? document.createElement("textarea")
+      : document.createElement("input");
+  if (f.type && f.type !== "textarea") input.type = f.type;
+  input.id = f.key;
+  container.append(label, input);
+}
+
 const readForm = () =>
-  Object.fromEntries(FIELDS.map((f) => [f, $(f).value.trim()]));
-const writeForm = (p) => FIELDS.forEach((f) => ($(f).value = p[f] ?? ""));
+  Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, $(f.key).value.trim()]));
+const writeForm = (p) =>
+  PROFILE_FIELDS.forEach((f) => ($(f.key).value = p[f.key] ?? ""));
 
 async function autofill(submit) {
   await saveProfile(readForm());
@@ -32,6 +52,14 @@ $("save").addEventListener("click", async () => {
 });
 $("fill").addEventListener("click", () => autofill(false));
 $("fillSubmit").addEventListener("click", () => autofill(true));
+
+// Auto-fill-on-open toggle.
+$("autofillOnOpen").addEventListener("change", async (e) => {
+  await saveSettings({ autofillOnOpen: e.target.checked });
+  statusEl.textContent = e.target.checked
+    ? "Auto-fill on open: ON"
+    : "Auto-fill on open: OFF";
+});
 
 /* ---------- job context ---------- */
 
@@ -144,6 +172,7 @@ $("exportStatus").addEventListener("click", async () => {
 
 (async () => {
   writeForm(await loadProfile());
+  $("autofillOnOpen").checked = (await loadSettings()).autofillOnOpen;
   jobs = await loadJobs();
   statuses = await getStatuses();
   await refreshCurrentJob();

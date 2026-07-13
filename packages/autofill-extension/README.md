@@ -32,16 +32,38 @@ Extension ──"Export status updates"──▶ status-updates.json ──read�
 
 ## Autofill
 
-- **`popup.html` / `popup.js`** — edit and save your profile (name, email,
-  phone, LinkedIn, website) to `chrome.storage.sync`; buttons to **Fill** or
-  **Fill & Submit** the form in the active tab.
-- **`content.js`** — matches each form field by its name/id/label/placeholder
-  against `FIELD_MATCHERS`, sets values in a way React/Vue controlled inputs
-  detect, and can click the submit button.
-- **`background.js`** — service worker that seeds an empty profile on install
-  and relays autofill requests to the active tab.
-- **`jobs.js`** — job store: import/load jobs, match the current URL, and track
-  status.
+Open a job's application (e.g. from the link in your sheet) and the extension
+fills the form from your saved profile.
+
+- **Auto-fill on open** (default on) — when an application page loads, the
+  content script detects the form (watching the DOM for a few seconds, since
+  ATS forms like Greenhouse/Lever/Workday render late) and fills it. Toggle it
+  in the popup.
+- **Manual** — the popup's **Fill** / **Fill & Submit** buttons act on the
+  active tab.
+- **Fields covered** — name, email, phone, address/city/state/zip/country,
+  LinkedIn, website, current company/title, years of experience, and cover
+  letter. Edit the profile in the popup; fields come from `PROFILE_FIELDS` in
+  `profile.js` (mirror the matchers in `content.js`).
+
+It fills **only empty fields** (never overwrites what you typed) and matches by
+each field's name/id/label/placeholder/aria-label, setting values in a way
+React/Vue controlled inputs detect.
+
+### Two hard limits (browser rules, not bugs)
+
+- **Resume upload can't be automated.** Browsers forbid setting a file input's
+  value from a script, so you always attach the resume/CV file yourself.
+- **Submit stays manual.** Auto-fill never clicks submit — use **Fill & Submit**
+  deliberately. Submitting an application is irreversible.
+
+### Files
+
+- **`content.js`** — the filler (matchers, auto-fill-on-open, form detection).
+- **`popup.html` / `popup.js`** — profile editor, auto-fill toggle, Fill/Submit,
+  and the job-context panel.
+- **`background.js`** — seeds settings and relays autofill requests.
+- **`jobs.js`** — job store: import/load jobs, match the current URL, track status.
 
 ## Load it (unpacked)
 

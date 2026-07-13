@@ -3,11 +3,11 @@
 // tab's content script.
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const { profile } = await chrome.storage.sync.get("profile");
-  if (!profile) {
-    await chrome.storage.sync.set({
-      profile: { firstName: "", lastName: "", email: "", phone: "", linkedin: "", website: "" },
-    });
+  const { settings } = await chrome.storage.sync.get("settings");
+  if (!settings) {
+    // Auto-fill on open, enabled by default. (Profile defaults are applied by
+    // loadProfile() merging DEFAULT_PROFILE, so no need to seed it here.)
+    await chrome.storage.sync.set({ settings: { autofillOnOpen: true } });
   }
 });
 
