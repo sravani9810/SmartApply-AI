@@ -20,6 +20,7 @@ export const COLUMNS: Array<{ header: string; key: keyof FlatRow; width: number 
   { header: "Status", key: "status", width: 12 },
   { header: "Fit Score", key: "fitScore", width: 10 },
   { header: "Captured At", key: "capturedAt", width: 22 },
+  { header: "Last Seen At", key: "lastSeenAt", width: 22 },
 ];
 
 export interface FlatRow {
@@ -37,6 +38,7 @@ export interface FlatRow {
   status: string;
   fitScore: number | "";
   capturedAt: string;
+  lastSeenAt: string;
 }
 
 /** Header labels in column order. */
@@ -58,7 +60,8 @@ export function flatten(job: JobPosting): FlatRow {
     recruiterPhone: job.recruiter?.phone ?? "",
     status: job.status ?? "new",
     fitScore: job.fitScore ?? "",
-    capturedAt: job.capturedAt,
+    capturedAt: job.capturedAt, // first-seen (preserved on update)
+    lastSeenAt: job.capturedAt, // this run's fetch time (refreshed each run)
   };
 }
 

@@ -28,9 +28,14 @@ async function open(path: string): Promise<ExcelJS.Workbook> {
   } else {
     // ExcelJS doesn't persist column keys, so reassign them by position when a
     // workbook is loaded from disk — otherwise getCell(key)/keyed values fail.
+    // Also refresh the header row so new columns (e.g. "Last Seen At") appear.
+    const header = sheet.getRow(1);
     COLUMNS.forEach((c, i) => {
       sheet!.getColumn(i + 1).key = c.key;
+      header.getCell(i + 1).value = c.header;
     });
+    header.font = { bold: true };
+    header.commit();
   }
   return wb;
 }

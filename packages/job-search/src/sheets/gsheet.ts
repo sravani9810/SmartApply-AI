@@ -90,8 +90,12 @@ export async function syncToGoogleSheet(
   const updates: sheets_v4.Schema$ValueRange[] = [];
   const appends: Array<Array<string | number>> = [];
 
-  // Write the header row if the sheet is empty.
-  if (!hasHeader) {
+  // Always (re)write the header row so the schema stays current — e.g. when a
+  // new column like "Last Seen At" is added to an existing sheet.
+  const headerRow = grid[0] ?? [];
+  const headerMatches =
+    hasHeader && HEADERS.every((h, i) => headerRow[i] === h);
+  if (!headerMatches) {
     updates.push({ range: rowRange(cfg.sheetName, 1), values: [HEADERS] });
   }
 
