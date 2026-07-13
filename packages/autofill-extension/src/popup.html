@@ -22,6 +22,9 @@
       .badge.skipped { background: #f3e0e0; color: #9a3b3b; }
       .muted { color: #999; }
       select { width: 100%; padding: 4px; margin-top: 6px; }
+      textarea { width: 100%; box-sizing: border-box; padding: 4px 6px; min-height: 48px; resize: vertical; }
+      label.chk { display: flex; align-items: center; gap: 6px; margin: 4px 0 8px; color: #333; }
+      label.chk input { width: auto; }
     </style>
   </head>
   <body>
@@ -52,12 +55,8 @@
     <hr />
 
     <h2>Autofill profile</h2>
-    <label>First name</label><input id="firstName" />
-    <label>Last name</label><input id="lastName" />
-    <label>Email</label><input id="email" />
-    <label>Phone</label><input id="phone" />
-    <label>LinkedIn</label><input id="linkedin" />
-    <label>Website</label><input id="website" />
+    <label class="chk"><input type="checkbox" id="autofillOnOpen" /> Auto-fill when I open an application</label>
+    <div id="profileFields"></div>
     <div class="row">
       <button id="save">Save</button>
       <button id="fill">Fill</button>
