@@ -16,22 +16,22 @@
   // Field -> substrings matched (case-insensitive) against a field's
   // name/id/label/placeholder/aria-label. Ordered specific-first; first match wins.
   const FIELD_MATCHERS = {
-    firstName: ["first name", "firstname", "given name", "fname"],
-    lastName: ["last name", "lastname", "surname", "family name", "lname"],
+    firstName: ["first name", "firstname", "given name", "legal first name", "preferred first name", "fname"],
+    lastName: ["last name", "lastname", "surname", "family name", "legal last name", "lname"],
     fullName: ["full name", "full legal name", "legal name", "your name"],
-    email: ["email", "e-mail"],
-    phone: ["phone", "mobile", "tel", "contact number"],
+    email: ["email", "e-mail", "e mail"],
+    phone: ["phone", "mobile", "telephone", "cell", "tel", "contact number"],
     linkedin: ["linkedin"],
-    website: ["website", "portfolio", "personal site", "personal website"],
-    address: ["street address", "address line 1", "mailing address", "address"],
+    website: ["website", "portfolio", "personal site", "personal website", "web site"],
+    address: ["street address", "address line 1", "mailing address", "residential address", "current address", "address"],
     city: ["city", "town"],
     state: ["state", "province", "region"],
-    zipcode: ["zip", "postal", "postcode", "pin code"],
-    country: ["country"],
-    currentCompany: ["current company", "current employer", "present employer", "employer"],
-    currentTitle: ["current title", "job title", "current role", "current position", "occupation"],
-    yearsExperience: ["years of experience", "years experience", "total experience", "yrs of experience"],
-    coverLetter: ["cover letter", "why do you", "why are you", "additional information", "tell us", "message"],
+    zipcode: ["zip", "postal", "postcode", "pin code", "post code"],
+    country: ["country", "nationality"],
+    currentCompany: ["current company", "current employer", "present employer", "present company", "employer"],
+    currentTitle: ["current title", "job title", "current role", "current position", "present position", "designation", "occupation"],
+    yearsExperience: ["years of experience", "years experience", "total experience", "yrs of experience", "how many years"],
+    coverLetter: ["cover letter", "cover note", "why do you", "why are you", "additional information", "introduce yourself", "tell us", "message"],
   };
 
   /** Resolve the value for a field, deriving fullName from first + last. */
@@ -42,17 +42,32 @@
     return profile[field] ?? "";
   }
 
-  /** input/textarea across the document AND open shadow roots (Workday etc.). */
+  /** input/textarea/select across the document AND open shadow roots. */
   function deepFields(root = document) {
     const out = [];
     const walk = (node) => {
-      out.push(...node.querySelectorAll("input, textarea"));
+      out.push(...node.querySelectorAll("input, textarea, select"));
       for (const el of node.querySelectorAll("*")) {
         if (el.shadowRoot) walk(el.shadowRoot);
       }
     };
     walk(root);
     return out;
+  }
+
+  /** Select the <option> that best matches value (exact, then contains). */
+  function fillSelect(el, value) {
+    const v = value.toLowerCase();
+    const opts = [...el.options];
+    const match =
+      opts.find((o) => o.value.toLowerCase() === v || o.text.trim().toLowerCase() === v) ||
+      opts.find((o) => o.text.trim().toLowerCase().includes(v) && o.value);
+    if (match) {
+      el.value = match.value;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
+    return false;
   }
 
   /** Best-effort label text for an input, from attributes and associated labels. */
@@ -102,15 +117,21 @@
     el.type !== "file" && // browsers forbid setting file inputs from script
     el.offsetParent !== null; // visible
 
-  /** Fill matching, empty inputs with the profile. Returns the count filled. */
+  /** Fill matching, empty fields with the profile. Returns the count filled. */
   function fillForm(profile) {
     let filled = 0;
     for (const el of deepFields()) {
-      if (!fillable(el) || el.value.trim()) continue;
+      if (!fillable(el)) continue;
+      const isSelect = el.tagName === "SELECT";
+      if (!isSelect && el.value.trim()) continue; // skip filled text inputs
       const field = fieldFor(el);
       if (!field) continue;
       const value = valueFor(profile, field);
-      if (value) {
+      if (!value) continue;
+      if (isSelect) {
+        if (el.value) continue; // leave a select the user already chose
+        if (fillSelect(el, value)) filled++;
+      } else {
         setValue(el, value);
         filled++;
       }
