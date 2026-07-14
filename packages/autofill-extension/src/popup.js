@@ -41,9 +41,14 @@ const writeForm = (p) =>
 async function autofill(submit) {
   await saveProfile(readForm());
   const res = await chrome.runtime.sendMessage({ type: "AUTOFILL_ACTIVE_TAB", submit });
-  statusEl.textContent = res
-    ? `Filled ${res.filled} field(s)${res.submitted ? ", submitted" : ""}.`
-    : "No response from page.";
+  if (!res) {
+    statusEl.textContent = "No response from page.";
+  } else if (res.error) {
+    statusEl.textContent =
+      "Can't reach this page (try reloading the tab, or it's a page extensions can't touch).";
+  } else {
+    statusEl.textContent = `Filled ${res.filled} field(s)${res.submitted ? ", submitted" : ""}.`;
+  }
 }
 
 $("save").addEventListener("click", async () => {
