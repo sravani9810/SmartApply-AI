@@ -19,6 +19,12 @@ export const PROFILE_FIELDS = [
   { key: "currentTitle", label: "Current title" },
   { key: "yearsExperience", label: "Years of experience" },
   { key: "coverLetter", label: "Cover letter", type: "textarea" },
+  // Choice questions (radio/checkbox). Type the answer as it appears on forms.
+  { key: "workAuthorized", label: "Authorized to work? (Yes/No)" },
+  { key: "requiresSponsorship", label: "Need visa sponsorship? (Yes/No)" },
+  { key: "gender", label: "Gender (optional, EEO)" },
+  { key: "veteranStatus", label: "Veteran status (optional, EEO)" },
+  { key: "disabilityStatus", label: "Disability status (optional, EEO)" },
 ];
 
 /** @typedef {{ [field: string]: string }} Profile */
