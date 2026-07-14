@@ -37,19 +37,34 @@ function valueFor(profile, field) {
   return profile[field] ?? "";
 }
 
+/** Collect input/textarea across the document AND open shadow roots (Workday
+ * and other web-component forms nest fields inside shadow DOM). */
+function deepFields(root = document) {
+  const out = [];
+  const walk = (node) => {
+    out.push(...node.querySelectorAll("input, textarea"));
+    for (const el of node.querySelectorAll("*")) {
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(root);
+  return out;
+}
+
 /** Best-effort label text for an input, from attributes and associated labels. */
 function fieldSignals(el) {
+  const root = el.getRootNode(); // the field's document or shadow root
   const parts = [el.name, el.id, el.getAttribute("aria-label"), el.placeholder];
-  if (el.id) {
-    const forLabel = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+  if (el.id && root.querySelector) {
+    const forLabel = root.querySelector(`label[for="${CSS.escape(el.id)}"]`);
     if (forLabel) parts.push(forLabel.textContent);
   }
   const wrapLabel = el.closest("label");
   if (wrapLabel) parts.push(wrapLabel.textContent);
   const labelledby = el.getAttribute("aria-labelledby");
-  if (labelledby) {
+  if (labelledby && root.getElementById) {
     for (const id of labelledby.split(/\s+/)) {
-      parts.push(document.getElementById(id)?.textContent);
+      parts.push(root.getElementById(id)?.textContent);
     }
   }
   return parts.filter(Boolean).join(" ").toLowerCase();
@@ -86,7 +101,7 @@ const fillable = (el) =>
 /** Fill matching, empty inputs with the profile. Returns the count filled. */
 function fillForm(profile) {
   let filled = 0;
-  for (const el of document.querySelectorAll("input, textarea")) {
+  for (const el of deepFields()) {
     if (!fillable(el) || el.value.trim()) continue; // skip filled fields
     const field = fieldFor(el);
     if (!field) continue;
@@ -102,7 +117,7 @@ function fillForm(profile) {
 /** Heuristic: does this page look like an application form? (>= 2 known fields) */
 function looksLikeApplicationForm() {
   const seen = new Set();
-  for (const el of document.querySelectorAll("input, textarea")) {
+  for (const el of deepFields()) {
     if (!fillable(el)) continue;
     const field = fieldFor(el);
     if (field) seen.add(field);
