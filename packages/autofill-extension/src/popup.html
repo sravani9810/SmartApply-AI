@@ -56,11 +56,16 @@
 
     <h2>Autofill profile</h2>
     <label class="chk"><input type="checkbox" id="autofillOnOpen" /> Auto-fill when I open an application</label>
+    <label class="chk"><input type="checkbox" id="learnToggle" /> Learn new answers as I fill forms</label>
+    <div id="learnedInfo" class="muted" style="margin-bottom:6px;"></div>
     <div id="profileFields"></div>
     <div class="row">
       <button id="save">Save</button>
       <button id="fill">Fill</button>
       <button id="fillSubmit">Fill &amp; Submit</button>
+    </div>
+    <div class="row">
+      <button id="clearLearned">Clear learned answers</button>
     </div>
 
     <div id="status"></div>

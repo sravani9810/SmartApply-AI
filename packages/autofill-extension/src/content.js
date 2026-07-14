@@ -1,20 +1,20 @@
-// Content script: fills the visible application form with the saved profile.
-// Self-contained (MV3 content scripts can't import ES modules). Keep the field
-// list in sync with profile.js.
-//
-// Runs two ways:
-//   1. Auto-fill when an application page opens (if the setting is on).
-//   2. On demand from the popup, which injects this file and calls
-//      window.__smartApplyFill(profile, submit).
-// Wrapped in a guarded IIFE so re-injection (on-demand Fill) is a no-op and
-// doesn't redeclare top-level bindings. Fills only EMPTY fields; never auto-submits.
+// Content script: fills the visible application form with the saved profile,
+// plus answers it has "learned" from what you've typed on past forms.
+// Self-contained (MV3 content scripts can't import). Keep field list in sync
+// with profile.js. Wrapped in a guarded IIFE so on-demand re-injection is a
+// no-op. Fills only EMPTY fields; never auto-submits.
 
 (() => {
   if (window.__smartApplyInit) return;
   window.__smartApplyInit = true;
 
-  // Field -> substrings matched (case-insensitive) against a field's
-  // name/id/label/placeholder/aria-label. Ordered specific-first; first match wins.
+  // Learned answers ({ normalizedLabel: value }) and settings, cached here and
+  // kept fresh via storage change events.
+  let learned = {};
+  let learningEnabled = true;
+  let isAppPage = false; // gate learning to application-like pages
+
+  // Field -> substrings matched against a field's label/name/id/placeholder.
   const FIELD_MATCHERS = {
     firstName: ["first name", "firstname", "given name", "legal first name", "preferred first name", "fname"],
     lastName: ["last name", "lastname", "surname", "family name", "legal last name", "lname"],
@@ -34,7 +34,17 @@
     coverLetter: ["cover letter", "cover note", "why do you", "why are you", "additional information", "introduce yourself", "tell us", "message"],
   };
 
-  /** Resolve the value for a field, deriving fullName from first + last. */
+  const CHOICE_MATCHERS = {
+    workAuthorized: ["authorized to work", "work authorization", "legally authorized", "eligible to work", "right to work"],
+    requiresSponsorship: ["require sponsorship", "need sponsorship", "visa sponsorship", "sponsorship now or in the future"],
+    gender: ["gender"],
+    veteranStatus: ["veteran"],
+    disabilityStatus: ["disability"],
+  };
+  const CONSENT_RE = /agree|terms|privacy|consent|subscribe|newsletter|opt.?in|acknowledge|certify/i;
+
+  const norm = (s) => (s || "").replace(/[\s*:_-]+/g, " ").trim().toLowerCase();
+
   function valueFor(profile, field) {
     if (field === "fullName" && !profile.fullName) {
       return [profile.firstName, profile.lastName].filter(Boolean).join(" ");
@@ -47,49 +57,41 @@
     const out = [];
     const walk = (node) => {
       out.push(...node.querySelectorAll("input, textarea, select"));
-      for (const el of node.querySelectorAll("*")) {
-        if (el.shadowRoot) walk(el.shadowRoot);
-      }
+      for (const el of node.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
     };
     walk(root);
     return out;
   }
 
-  /** Select the <option> that best matches value (exact, then contains). */
-  function fillSelect(el, value) {
-    const v = value.toLowerCase();
-    const opts = [...el.options];
-    const match =
-      opts.find((o) => o.value.toLowerCase() === v || o.text.trim().toLowerCase() === v) ||
-      opts.find((o) => o.text.trim().toLowerCase().includes(v) && o.value);
-    if (match) {
-      el.value = match.value;
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-      return true;
-    }
-    return false;
-  }
-
-  /** Best-effort label text for an input, from attributes and associated labels. */
+  /** Best signals for matching a field to a known type. */
   function fieldSignals(el) {
     const root = el.getRootNode();
     const parts = [el.name, el.id, el.getAttribute("aria-label"), el.placeholder];
     if (el.id && root.querySelector) {
-      const forLabel = root.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-      if (forLabel) parts.push(forLabel.textContent);
+      const l = root.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+      if (l) parts.push(l.textContent);
     }
-    const wrapLabel = el.closest("label");
-    if (wrapLabel) parts.push(wrapLabel.textContent);
-    const labelledby = el.getAttribute("aria-labelledby");
-    if (labelledby && root.getElementById) {
-      for (const id of labelledby.split(/\s+/)) {
-        parts.push(root.getElementById(id)?.textContent);
-      }
+    const wrap = el.closest("label");
+    if (wrap) parts.push(wrap.textContent);
+    const lb = el.getAttribute("aria-labelledby");
+    if (lb && root.getElementById) {
+      for (const id of lb.split(/\s+/)) parts.push(root.getElementById(id)?.textContent);
     }
     return parts.filter(Boolean).join(" ").toLowerCase();
   }
 
-  /** Which field (if any) an input maps to. */
+  /** The single human-readable label for a field, used as the learning key. */
+  function humanLabel(el) {
+    const root = el.getRootNode();
+    let label = el.getAttribute("aria-label") || "";
+    if (!label && el.id && root.querySelector) {
+      label = root.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent || "";
+    }
+    if (!label) label = el.closest("label")?.textContent || "";
+    if (!label) label = el.placeholder || el.name || "";
+    return norm(label);
+  }
+
   function fieldFor(el) {
     const signals = fieldSignals(el);
     if (!signals) return null;
@@ -99,7 +101,6 @@
     return null;
   }
 
-  /** Set a value in a way React/Vue controlled inputs will notice. */
   function setValue(el, value) {
     const proto = Object.getPrototypeOf(el);
     const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
@@ -109,30 +110,47 @@
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  function fillSelect(el, value) {
+    const v = value.toLowerCase();
+    const opts = [...el.options];
+    const match =
+      opts.find((o) => o.value.toLowerCase() === v || o.text.trim().toLowerCase() === v) ||
+      opts.find((o) => o.value && o.text.trim().toLowerCase().includes(v));
+    if (match) {
+      el.value = match.value;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
+    return false;
+  }
+
+  const isChoice = (el) =>
+    el.tagName === "INPUT" && (el.type === "radio" || el.type === "checkbox");
+
   const fillable = (el) =>
     !el.disabled &&
     !el.readOnly &&
     el.type !== "hidden" &&
     el.type !== "password" &&
-    el.type !== "file" && // browsers forbid setting file inputs from script
-    el.offsetParent !== null; // visible
+    el.type !== "file" &&
+    el.offsetParent !== null;
 
-  const isChoice = (el) =>
-    el.tagName === "INPUT" && (el.type === "radio" || el.type === "checkbox");
-
-  /** Fill matching text inputs, textareas, and native selects. */
-  function fillForm(profile) {
+  /** Fill text/textarea/select from the profile, falling back to learned answers. */
+  function fillForm(profile, learnedMap = learned) {
     let filled = 0;
     for (const el of deepFields()) {
-      if (!fillable(el) || isChoice(el)) continue; // choices handled separately
+      if (!fillable(el) || isChoice(el)) continue;
       const isSelect = el.tagName === "SELECT";
-      if (!isSelect && el.value.trim()) continue; // skip filled text inputs
+      if (!isSelect && el.value.trim()) continue;
       const field = fieldFor(el);
-      if (!field) continue;
-      const value = valueFor(profile, field);
+      let value = field ? valueFor(profile, field) : "";
+      if (!value && learnedMap) {
+        const k = humanLabel(el);
+        if (k && learnedMap[k]) value = learnedMap[k];
+      }
       if (!value) continue;
       if (isSelect) {
-        if (el.value) continue; // leave a select the user already chose
+        if (el.value) continue;
         if (fillSelect(el, value)) filled++;
       } else {
         setValue(el, value);
@@ -142,17 +160,6 @@
     return filled;
   }
 
-  // Questions answered via radio/checkbox, matched against the group's label.
-  const CHOICE_MATCHERS = {
-    workAuthorized: ["authorized to work", "work authorization", "legally authorized", "eligible to work", "right to work"],
-    requiresSponsorship: ["require sponsorship", "need sponsorship", "visa sponsorship", "sponsorship now or in the future"],
-    gender: ["gender"],
-    veteranStatus: ["veteran"],
-    disabilityStatus: ["disability"],
-  };
-  // Never auto-tick these — accepting them is a deliberate action.
-  const CONSENT_RE = /agree|terms|privacy|consent|subscribe|newsletter|opt.?in|acknowledge|certify/i;
-
   function choiceFieldFor(text) {
     for (const [field, needles] of Object.entries(CHOICE_MATCHERS)) {
       if (needles.some((n) => text.includes(n))) return field;
@@ -160,7 +167,6 @@
     return null;
   }
 
-  /** Text identifying one specific radio/checkbox option (its own label/value). */
   function optionLabel(el) {
     const root = el.getRootNode();
     const parts = [el.value, el.getAttribute("aria-label")];
@@ -173,7 +179,6 @@
     return parts.filter(Boolean).join(" ").trim().toLowerCase();
   }
 
-  /** The question text for a radio/checkbox group (fieldset legend / ARIA group). */
   function groupQuestion(el) {
     const legend = el.closest("fieldset")?.querySelector("legend");
     if (legend) return legend.textContent.toLowerCase();
@@ -191,8 +196,8 @@
     return "";
   }
 
-  /** Select radio options and tick yes/no checkboxes from the profile answers. */
-  function fillChoices(profile) {
+  /** Select radio options from the profile / learned answers; tick yes checkboxes. */
+  function fillChoices(profile, learnedMap = learned) {
     let filled = 0;
     const radioGroups = new Map();
     const checkboxes = [];
@@ -208,11 +213,15 @@
     }
 
     for (const group of radioGroups.values()) {
-      if (group.some((r) => r.checked)) continue; // already answered
+      if (group.some((r) => r.checked)) continue;
       const question = group.map(groupQuestion).find(Boolean) || "";
       const field = choiceFieldFor(question);
-      const answer = (profile[field] ?? "").toLowerCase();
-      if (!field || !answer) continue;
+      let answer = field ? (profile[field] ?? "").toLowerCase() : "";
+      if (!answer && learnedMap) {
+        const k = norm(question);
+        if (k && learnedMap[k]) answer = String(learnedMap[k]).toLowerCase();
+      }
+      if (!answer) continue;
       const pick = group.find((r) => {
         const opt = optionLabel(r);
         return opt && (opt.includes(answer) || answer.includes(opt));
@@ -226,13 +235,11 @@
 
     for (const el of checkboxes) {
       if (el.checked) continue;
-      const opt = optionLabel(el);
-      const context = `${opt} ${groupQuestion(el)}`;
+      const context = `${optionLabel(el)} ${groupQuestion(el)}`;
       if (CONSENT_RE.test(context)) continue; // never auto-accept consent/terms
       const field = choiceFieldFor(context);
       const answer = (profile[field] ?? "").toLowerCase();
-      // Only tick an affirmative box when the saved answer is "yes".
-      if (field && answer === "yes" && /\byes\b|authorized|eligible/.test(opt)) {
+      if (field && answer === "yes" && /\byes\b|authorized|eligible/.test(optionLabel(el))) {
         el.checked = true;
         el.dispatchEvent(new Event("change", { bubbles: true }));
         filled++;
@@ -241,12 +248,11 @@
     return filled;
   }
 
-  /** Heuristic: does this page look like an application form? (>= 2 known fields) */
   function looksLikeApplicationForm() {
     const seen = new Set();
     for (const el of deepFields()) {
       if (!fillable(el)) continue;
-      const field = fieldFor(el);
+      const field = fieldFor(el) || (isChoice(el) ? choiceFieldFor(groupQuestion(el)) : null);
       if (field) seen.add(field);
       if (seen.size >= 2) return true;
     }
@@ -264,15 +270,65 @@
     return false;
   }
 
+  // --- Learn what you type on application forms ---
+  async function remember(el) {
+    if (!learningEnabled || !el || el.disabled) return;
+    if (!isAppPage) {
+      if (looksLikeApplicationForm()) isAppPage = true;
+      else return;
+    }
+    let key, val;
+    if (el.tagName === "INPUT" && el.type === "radio") {
+      if (!el.checked) return;
+      key = norm(groupQuestion(el));
+      val = optionLabel(el);
+    } else if (el.tagName === "SELECT") {
+      key = humanLabel(el);
+      val = el.selectedOptions[0]?.text?.trim() || el.value;
+    } else if (
+      el.tagName === "TEXTAREA" ||
+      (el.tagName === "INPUT" && !["password", "file", "hidden", "checkbox"].includes(el.type))
+    ) {
+      key = humanLabel(el);
+      val = el.value;
+    } else {
+      return; // don't learn checkboxes (avoid auto-accepting consent later)
+    }
+    if (!key || !val) return;
+    const { learned: cur = {} } = await chrome.storage.local.get("learned");
+    if (cur[key] === val) return;
+    cur[key] = val;
+    learned = cur;
+    await chrome.storage.local.set({ learned: cur });
+  }
+  document.addEventListener("change", (e) => remember(e.target), true);
+
   // Entry point the popup calls via chrome.scripting.executeScript.
-  window.__smartApplyFill = (profile, submit) => ({
-    filled: fillForm(profile) + fillChoices(profile),
+  window.__smartApplyFill = (profile, learnedMap, submit) => ({
+    filled: fillForm(profile, learnedMap || learned) + fillChoices(profile, learnedMap || learned),
     submitted: submit ? submitForm() : false,
+  });
+
+  // Keep cached state fresh.
+  chrome.storage.local.get("learned").then(({ learned: l }) => { if (l) learned = l; });
+  chrome.storage.sync.get("settings").then(({ settings }) => {
+    learningEnabled = settings?.learningEnabled ?? true;
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.learned) learned = changes.learned.newValue || {};
+    if (area === "sync" && changes.settings) {
+      learningEnabled = changes.settings.newValue?.learningEnabled ?? true;
+    }
   });
 
   // --- Auto-fill when an application page opens ---
   (async function autoFillOnOpen() {
-    const { settings, profile } = await chrome.storage.sync.get(["settings", "profile"]);
+    const [{ settings, profile }, { learned: l }] = await Promise.all([
+      chrome.storage.sync.get(["settings", "profile"]),
+      chrome.storage.local.get("learned"),
+    ]);
+    if (l) learned = l;
+    learningEnabled = settings?.learningEnabled ?? true;
     if (!(settings?.autofillOnOpen ?? true) || !profile) return;
 
     let done = false;
@@ -285,7 +341,6 @@
         observer.disconnect();
       }
     };
-    // ATS forms (Greenhouse/Lever/Workday) render late, so watch briefly.
     const observer = new MutationObserver(() => tryFill());
     observer.observe(document.body, { childList: true, subtree: true });
     tryFill();
