@@ -117,11 +117,14 @@
     el.type !== "file" && // browsers forbid setting file inputs from script
     el.offsetParent !== null; // visible
 
-  /** Fill matching, empty fields with the profile. Returns the count filled. */
+  const isChoice = (el) =>
+    el.tagName === "INPUT" && (el.type === "radio" || el.type === "checkbox");
+
+  /** Fill matching text inputs, textareas, and native selects. */
   function fillForm(profile) {
     let filled = 0;
     for (const el of deepFields()) {
-      if (!fillable(el)) continue;
+      if (!fillable(el) || isChoice(el)) continue; // choices handled separately
       const isSelect = el.tagName === "SELECT";
       if (!isSelect && el.value.trim()) continue; // skip filled text inputs
       const field = fieldFor(el);
@@ -133,6 +136,105 @@
         if (fillSelect(el, value)) filled++;
       } else {
         setValue(el, value);
+        filled++;
+      }
+    }
+    return filled;
+  }
+
+  // Questions answered via radio/checkbox, matched against the group's label.
+  const CHOICE_MATCHERS = {
+    workAuthorized: ["authorized to work", "work authorization", "legally authorized", "eligible to work", "right to work"],
+    requiresSponsorship: ["require sponsorship", "need sponsorship", "visa sponsorship", "sponsorship now or in the future"],
+    gender: ["gender"],
+    veteranStatus: ["veteran"],
+    disabilityStatus: ["disability"],
+  };
+  // Never auto-tick these — accepting them is a deliberate action.
+  const CONSENT_RE = /agree|terms|privacy|consent|subscribe|newsletter|opt.?in|acknowledge|certify/i;
+
+  function choiceFieldFor(text) {
+    for (const [field, needles] of Object.entries(CHOICE_MATCHERS)) {
+      if (needles.some((n) => text.includes(n))) return field;
+    }
+    return null;
+  }
+
+  /** Text identifying one specific radio/checkbox option (its own label/value). */
+  function optionLabel(el) {
+    const root = el.getRootNode();
+    const parts = [el.value, el.getAttribute("aria-label")];
+    if (el.id && root.querySelector) {
+      const l = root.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+      if (l) parts.push(l.textContent);
+    }
+    const wrap = el.closest("label");
+    if (wrap) parts.push(wrap.textContent);
+    return parts.filter(Boolean).join(" ").trim().toLowerCase();
+  }
+
+  /** The question text for a radio/checkbox group (fieldset legend / ARIA group). */
+  function groupQuestion(el) {
+    const legend = el.closest("fieldset")?.querySelector("legend");
+    if (legend) return legend.textContent.toLowerCase();
+    const group = el.closest('[role="radiogroup"], [role="group"]');
+    if (group) {
+      const al = group.getAttribute("aria-label");
+      if (al) return al.toLowerCase();
+      const lb = group.getAttribute("aria-labelledby");
+      const root = el.getRootNode();
+      if (lb && root.getElementById) {
+        const t = lb.split(/\s+/).map((id) => root.getElementById(id)?.textContent ?? "").join(" ");
+        if (t.trim()) return t.toLowerCase();
+      }
+    }
+    return "";
+  }
+
+  /** Select radio options and tick yes/no checkboxes from the profile answers. */
+  function fillChoices(profile) {
+    let filled = 0;
+    const radioGroups = new Map();
+    const checkboxes = [];
+    for (const el of deepFields()) {
+      if (!isChoice(el) || !fillable(el)) continue;
+      if (el.type === "radio") {
+        const key = el.name || `__${radioGroups.size}`;
+        if (!radioGroups.has(key)) radioGroups.set(key, []);
+        radioGroups.get(key).push(el);
+      } else {
+        checkboxes.push(el);
+      }
+    }
+
+    for (const group of radioGroups.values()) {
+      if (group.some((r) => r.checked)) continue; // already answered
+      const question = group.map(groupQuestion).find(Boolean) || "";
+      const field = choiceFieldFor(question);
+      const answer = (profile[field] ?? "").toLowerCase();
+      if (!field || !answer) continue;
+      const pick = group.find((r) => {
+        const opt = optionLabel(r);
+        return opt && (opt.includes(answer) || answer.includes(opt));
+      });
+      if (pick) {
+        pick.checked = true;
+        pick.dispatchEvent(new Event("change", { bubbles: true }));
+        filled++;
+      }
+    }
+
+    for (const el of checkboxes) {
+      if (el.checked) continue;
+      const opt = optionLabel(el);
+      const context = `${opt} ${groupQuestion(el)}`;
+      if (CONSENT_RE.test(context)) continue; // never auto-accept consent/terms
+      const field = choiceFieldFor(context);
+      const answer = (profile[field] ?? "").toLowerCase();
+      // Only tick an affirmative box when the saved answer is "yes".
+      if (field && answer === "yes" && /\byes\b|authorized|eligible/.test(opt)) {
+        el.checked = true;
+        el.dispatchEvent(new Event("change", { bubbles: true }));
         filled++;
       }
     }
@@ -164,7 +266,7 @@
 
   // Entry point the popup calls via chrome.scripting.executeScript.
   window.__smartApplyFill = (profile, submit) => ({
-    filled: fillForm(profile),
+    filled: fillForm(profile) + fillChoices(profile),
     submitted: submit ? submitForm() : false,
   });
 
@@ -178,6 +280,7 @@
       if (done) return;
       if (looksLikeApplicationForm()) {
         fillForm(profile);
+        fillChoices(profile);
         done = true;
         observer.disconnect();
       }
