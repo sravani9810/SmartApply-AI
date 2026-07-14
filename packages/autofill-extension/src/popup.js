@@ -40,14 +40,30 @@ const writeForm = (p) =>
 
 async function autofill(submit) {
   await saveProfile(readForm());
-  const res = await chrome.runtime.sendMessage({ type: "AUTOFILL_ACTIVE_TAB", submit });
-  if (!res) {
-    statusEl.textContent = "No response from page.";
-  } else if (res.error) {
-    statusEl.textContent =
-      "Can't reach this page (try reloading the tab, or it's a page extensions can't touch).";
-  } else {
-    statusEl.textContent = `Filled ${res.filled} field(s)${res.submitted ? ", submitted" : ""}.`;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    statusEl.textContent = "No active tab.";
+    return;
+  }
+  const profile = readForm();
+  try {
+    // Inject the filler into every frame (idempotent), then call it. Using
+    // scripting.executeScript avoids "receiving end doesn't exist" errors from
+    // messaging a tab whose content script isn't loaded.
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      files: ["content.js"],
+    });
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      args: [profile, submit],
+      func: (p, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, s) : { filled: 0 }),
+    });
+    const filled = results.reduce((n, r) => n + (r.result?.filled || 0), 0);
+    const submitted = results.some((r) => r.result?.submitted);
+    statusEl.textContent = `Filled ${filled} field(s)${submitted ? ", submitted" : ""}.`;
+  } catch {
+    statusEl.textContent = "Can't run on this page (a chrome:// page, PDF, or the web store).";
   }
 }
 
