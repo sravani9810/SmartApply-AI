@@ -46,6 +46,7 @@ async function autofill(submit) {
     return;
   }
   const profile = readForm();
+  const { learned = {} } = await chrome.storage.local.get("learned");
   try {
     // Inject the filler into every frame (idempotent), then call it. Using
     // scripting.executeScript avoids "receiving end doesn't exist" errors from
@@ -56,8 +57,8 @@ async function autofill(submit) {
     });
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
-      args: [profile, submit],
-      func: (p, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, s) : { filled: 0 }),
+      args: [profile, learned, submit],
+      func: (p, l, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, l, s) : { filled: 0 }),
     });
     const filled = results.reduce((n, r) => n + (r.result?.filled || 0), 0);
     const submitted = results.some((r) => r.result?.submitted);
@@ -74,12 +75,29 @@ $("save").addEventListener("click", async () => {
 $("fill").addEventListener("click", () => autofill(false));
 $("fillSubmit").addEventListener("click", () => autofill(true));
 
-// Auto-fill-on-open toggle.
-$("autofillOnOpen").addEventListener("change", async (e) => {
-  await saveSettings({ autofillOnOpen: e.target.checked });
-  statusEl.textContent = e.target.checked
-    ? "Auto-fill on open: ON"
-    : "Auto-fill on open: OFF";
+// Settings toggles (preserve the other setting when saving one).
+async function updateSetting(patch) {
+  await saveSettings({ ...(await loadSettings()), ...patch });
+}
+$("autofillOnOpen").addEventListener("change", (e) =>
+  updateSetting({ autofillOnOpen: e.target.checked }),
+);
+$("learnToggle").addEventListener("change", (e) =>
+  updateSetting({ learningEnabled: e.target.checked }),
+);
+
+async function showLearnedCount() {
+  const { learned = {} } = await chrome.storage.local.get("learned");
+  const n = Object.keys(learned).length;
+  $("learnedInfo").textContent = n
+    ? `${n} learned answer${n === 1 ? "" : "s"} (used to fill unknown fields).`
+    : "No learned answers yet — fill a form and it'll remember.";
+}
+
+$("clearLearned").addEventListener("click", async () => {
+  await chrome.storage.local.set({ learned: {} });
+  await showLearnedCount();
+  statusEl.textContent = "Cleared learned answers.";
 });
 
 /* ---------- job context ---------- */
@@ -193,7 +211,10 @@ $("exportStatus").addEventListener("click", async () => {
 
 (async () => {
   writeForm(await loadProfile());
-  $("autofillOnOpen").checked = (await loadSettings()).autofillOnOpen;
+  const s = await loadSettings();
+  $("autofillOnOpen").checked = s.autofillOnOpen;
+  $("learnToggle").checked = s.learningEnabled;
+  await showLearnedCount();
   jobs = await loadJobs();
   statuses = await getStatuses();
   await refreshCurrentJob();

@@ -35,6 +35,8 @@ export const DEFAULT_PROFILE = Object.fromEntries(
 export const DEFAULT_SETTINGS = {
   /** Auto-fill the form when an application page opens (never auto-submits). */
   autofillOnOpen: true,
+  /** Learn answers from what you type on application forms, for next time. */
+  learningEnabled: true,
 };
 
 export async function loadProfile() {
