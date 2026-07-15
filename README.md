@@ -31,3 +31,9 @@ packages/
 
 See [`packages/autofill-extension`](packages/autofill-extension) for the full
 flow (job context, status tracking, autofill, and the pipeline contract).
+
+## Capabilities reference
+
+For a single reference of everything the app can do so far — across **Part 1**
+(job search, Excel, scheduler) and **Part 2** (autofill extension) — see
+[`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
