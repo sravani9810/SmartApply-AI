@@ -1,0 +1,25 @@
+{
+  "name": "@smartapply/job-search",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "start": "node dist/index.js",
+    "login:indeed": "node scripts/login-indeed.mjs",
+    "import:indeed": "node scripts/import-indeed.mjs",
+    "schedule:on": "bash scripts/schedule.sh on",
+    "schedule:off": "bash scripts/schedule.sh off",
+    "schedule:now": "bash scripts/schedule.sh now",
+    "schedule:status": "bash scripts/schedule.sh status"
+  },
+  "dependencies": {
+    "@smartapply/shared": "*",
+    "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
+    "googleapis": "^173.0.0",
+    "playwright": "^1.61.1"
+  }
+}

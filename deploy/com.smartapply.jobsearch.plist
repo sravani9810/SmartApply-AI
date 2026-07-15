@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd LaunchAgent that runs the job-search pipeline at the top of every hour.
+  Paths are specific to this machine. Install with:
+    cp deploy/com.smartapply.jobsearch.plist ~/Library/LaunchAgents/
+    launchctl load -w ~/Library/LaunchAgents/com.smartapply.jobsearch.plist
+  See packages/job-search/README.md ("Hourly scheduling") for details.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.smartapply.jobsearch</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/sravani/SmartApply-AI/packages/job-search/scripts/run-hourly.sh</string>
+  </array>
+
+  <!-- Run at minute 0 of every hour. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/sravani/SmartApply-AI</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/sravani/Library/Logs/smartapply/hourly.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/sravani/Library/Logs/smartapply/hourly.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

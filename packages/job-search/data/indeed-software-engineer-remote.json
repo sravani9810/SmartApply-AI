@@ -1,0 +1,23 @@
+{
+  "source": "indeed",
+  "query": { "keywords": ["Software Engineer"], "location": "Remote" },
+  "capturedAt": "2026-07-12",
+  "note": "Scraped from Indeed list view. Indeed does not expose date-posted (list view), end date, or recruiter contact, so those are left empty.",
+  "jobs": [
+    { "company": "DataAnnotation", "jk": "c9cf41a46d0d58ae", "location": "Remote in Ann Arbor, MI", "title": "Full Stack Developer - AI Trainer" },
+    { "company": "DataAnnotation", "jk": "ce35adba9e508a54", "location": "Remote in Marlette, MI", "title": "Android Software Engineer - AI Trainer" },
+    { "company": "TherapyNotes.com", "jk": "1964995584dc3547", "location": "Remote in Philadelphia, PA", "title": "Senior Software Developer (Agentic Development)" },
+    { "company": "TherapyNotes.com", "jk": "ca11e8821024eb82", "location": "Remote in Philadelphia, PA", "title": "Senior Software Developer" },
+    { "company": "DataAnnotation", "jk": "b29467269478ff5f", "location": "Remote in Newport Beach, CA", "title": "Back End Developer - AI Trainer" },
+    { "company": "Penn Mutual", "jk": "e6536fe07b25f00b", "location": "Remote", "title": "Senior Software Engineer - CyberLife" },
+    { "company": "Cotiviti", "jk": "aff8897a4118e957", "location": "Remote", "title": "Principal Backend Engineer AI (Python)" },
+    { "company": "E-AIM", "jk": "87b0cbe9ac823f37", "location": "Remote", "title": "Appian Developer" },
+    { "company": "E-AIM", "jk": "adbfb4a1529b48ee", "location": "Remote", "title": "Senior Appian Developer" },
+    { "company": "Everforth", "jk": "cc797c0390974ebe", "location": "Remote in Jacksonville, FL 32202", "title": "Remote Sr or Staff Engineer ($150-$240k) Ruby, Rails, Agentic AI" },
+    { "company": "Emergent Staffing", "jk": "28daacb59c7459a2", "location": "Remote in Chicago, IL", "title": "Software Engineer Team Lead" },
+    { "company": "Emergent Software", "jk": "e3b3590deac11d3f", "location": "Remote in Provo, UT", "title": "DevOps Architect (Azure & IaC)" },
+    { "company": "Emergent Software", "jk": "3f144d8d7bbd8372", "location": "Remote in Columbus, OH", "title": "Lead Software Engineer" },
+    { "company": "Emergent Staffing", "jk": "a3a70b026ad9ea4f", "location": "Remote in Minnesota", "title": "Software Engineer Team Lead" },
+    { "company": "Emergent Staffing", "jk": "91fdb69d525dfe10", "location": "Remote in Houston, TX", "title": "Software Engineer Team Lead" }
+  ]
+}
