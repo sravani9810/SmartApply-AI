@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font: 13px system-ui, sans-serif; width: 300px; padding: 12px; }
+      h2 { font-size: 12px; text-transform: uppercase; color: #888; margin: 14px 0 6px; letter-spacing: .04em; }
+      label { display: block; margin: 6px 0 2px; color: #444; }
+      input { width: 100%; box-sizing: border-box; padding: 4px 6px; }
+      .row { display: flex; gap: 6px; margin-top: 10px; }
+      button { flex: 1; padding: 6px; cursor: pointer; }
+      #status { margin-top: 8px; color: #2a7; min-height: 16px; }
+      hr { border: none; border-top: 1px solid #eee; margin: 14px 0; }
+
+      /* Job context */
+      #job { border: 1px solid #e3e3e3; border-radius: 6px; padding: 8px; background: #fafafa; }
+      #jobTitle { font-weight: 600; }
+      #jobMeta { color: #666; margin-top: 2px; }
+      #jobStatus { margin-top: 4px; }
+      .badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 11px; background: #eee; color: #555; }
+      .badge.applied { background: #dff5e3; color: #1b7a3d; }
+      .badge.skipped { background: #f3e0e0; color: #9a3b3b; }
+      .muted { color: #999; }
+      select { width: 100%; padding: 4px; margin-top: 6px; }
+      textarea { width: 100%; box-sizing: border-box; padding: 4px 6px; min-height: 48px; resize: vertical; }
+      label.chk { display: flex; align-items: center; gap: 6px; margin: 4px 0 8px; color: #333; }
+      label.chk input { width: auto; }
+    </style>
+  </head>
+  <body>
+    <strong>SmartApply</strong>
+
+    <h2>This job</h2>
+    <div id="job">
+      <div id="jobTitle" class="muted">No jobs loaded.</div>
+      <div id="jobMeta"></div>
+      <div id="jobStatus"></div>
+    </div>
+    <!-- Manual pick when the current page can't be auto-matched -->
+    <select id="jobPicker" hidden></select>
+    <div class="row">
+      <button id="markApplied">Mark Applied</button>
+      <button id="markSkipped">Mark Skipped</button>
+    </div>
+    <div class="row">
+      <label style="flex:1; margin:0;">
+        Load jobs (jobs-export.json)
+        <input type="file" id="importJobs" accept="application/json,.json" />
+      </label>
+    </div>
+    <div class="row">
+      <button id="exportStatus">Export status updates</button>
+    </div>
+
+    <hr />
+
+    <h2>Autofill profile</h2>
+    <label class="chk"><input type="checkbox" id="autofillOnOpen" /> Auto-fill when I open an application</label>
+    <label class="chk"><input type="checkbox" id="learnToggle" /> Learn new answers as I fill forms</label>
+    <div id="learnedInfo" class="muted" style="margin-bottom:6px;"></div>
+    <div id="profileFields"></div>
+    <div class="row">
+      <button id="save">Save</button>
+      <button id="fill">Fill</button>
+      <button id="fillSubmit">Fill &amp; Submit</button>
+    </div>
+    <div class="row">
+      <button id="clearLearned">Clear learned answers</button>
+    </div>
+
+    <div id="status"></div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

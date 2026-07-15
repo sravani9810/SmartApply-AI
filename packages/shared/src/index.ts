@@ -59,6 +59,43 @@ export interface JobSearchQuery {
   postedWithinDays?: number;
 }
 
+/**
+ * Contract between Part 1 (pipeline) and Part 2 (extension).
+ *
+ * The pipeline writes a `jobs-export.json` the extension loads so it knows which
+ * posting you're applying to. The extension writes a `status-updates.json` the
+ * pipeline reads back to update the workbook/sheet with your application status.
+ */
+
+/** One job as exported to the extension (a slim view of JobPosting). */
+export interface JobExportEntry {
+  id: string;
+  title: string;
+  company: string;
+  location?: string;
+  source: string;
+  url: string;
+  status?: ApplicationStatus;
+}
+
+/** The `jobs-export.json` file the pipeline writes for the extension. */
+export interface JobsExport {
+  exportedAt: string;
+  jobs: JobExportEntry[];
+}
+
+/** A single status change made in the extension. */
+export interface StatusUpdate {
+  id: string;
+  status: ApplicationStatus;
+  updatedAt: string;
+}
+
+/** The `status-updates.json` file the extension writes for the pipeline. */
+export interface StatusUpdatesFile {
+  updates: StatusUpdate[];
+}
+
 /** Result of matching a resume against a job description (Part 3). */
 export interface MatchResult {
   /** 0–1 overall fit. */

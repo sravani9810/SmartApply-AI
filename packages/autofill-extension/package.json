@@ -1,0 +1,9 @@
+{
+  "name": "@smartapply/autofill-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome (Manifest V3) extension that auto-fills and submits job application forms.",
+  "scripts": {
+    "build": "echo \"Load src/ as an unpacked extension — no build step required\""
+  }
+}

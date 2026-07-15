@@ -1,115 +1,79 @@
-# SmartApply-AI — Job Search (Part 1)
+# SmartApply-AI
 
-> This branch (`feature/job-search-excel`) contains **only Part 1**: job discovery
-> and Excel logging, plus the shared data model it depends on. The other two
-> parts — the autofill Chrome extension and the resume matcher — live on a
-> separate branch.
+An automated, **local-first** job-search pipeline, organized into three parts:
 
-Searches configured job boards and logs each posting to a structured Excel
-workbook. Designed to run on your local machine (which can reach the portals),
-on an hourly schedule.
+1. **Job Search (Part 1)** — discovers job postings and logs each one to a
+   structured Excel workbook (and, optionally, Google Sheets), on an hourly
+   schedule.
+2. **Autofill Extension (Part 2)** — a Chrome (Manifest V3) extension that knows
+   which job you're applying to, auto-fills application forms from a saved
+   profile, and learns answers to unknown fields.
+3. **Resume Matcher (Part 3)** — scores/tailors a resume against a job
+   description. *(In progress on its own branch.)*
 
-## What it saves
-
-One row per job in `data/jobs.xlsx`:
-
-- **Link** to the posting
-- **Date Posted** and **End Date** (when the board exposes them)
-- **Recruiter contact** — name, **email**, **phone** (when available)
-- Tracking fields: source, status, fit score, captured-at (first seen) and
-  last-seen-at (refreshed each run, so you can tell which jobs are still live)
+Everything runs on your own machine. Nothing leaves your computer except the
+**optional** Google Sheets sync you explicitly configure.
 
 ## Packages
 
 ```
 packages/
-  shared/        # common types (JobPosting, connectors, MatchResult)
-  job-search/    # Part 1 — discovery + Excel logging
-data/            # generated workbooks
+  shared/              # common types (JobPosting, JobsExport, StatusUpdates, MatchResult…)
+  job-search/          # Part 1 — discovery + Excel/Sheets logging + scheduler
+  autofill-extension/  # Part 2 — Chrome MV3 extension
+  resume-matcher/      # Part 3 — resume ↔ JD matching
+data/                  # generated workbooks
 ```
 
-- [`packages/job-search`](packages/job-search) — connectors, recruiter
-  enrichment hook, Excel writer, and the `runJobSearch()` orchestrator.
-- [`packages/shared`](packages/shared) — the `JobPosting` model shared across
-  all three parts.
+## Part 1 — Job Search, Excel & Scheduler
 
-## Setup & run
+Searches configured job boards and writes one row per job to `data/jobs.xlsx`
+(link, date posted/end date, recruiter contact when available, plus tracking
+fields). Re-runs upsert by a stable id, so nothing duplicates.
 
 ```bash
 npm install
 npm run build
+npm run search               # run the pipeline once
 
-# reference pipeline (synthetic connector -> Excel)
-npm run search
-
-# import a captured Indeed search into the workbook
-node packages/job-search/scripts/import-indeed.mjs
+npm run schedule:on          # enable hourly runs (macOS launchd)
+npm run schedule:off         # disable
+npm run schedule:status      # check
 ```
 
-## Update your search (job title & location)
+Search preferences live in `.env` (`JOB_KEYWORDS`, `JOB_LOCATION`, …) — no code
+edits. Google Sheets sync is optional and skipped automatically when unset. See
+[`packages/job-search`](packages/job-search) for the full setup, the live Indeed
+connector, and scheduler caveats.
 
-Search preferences live in `.env` — no code editing, no rebuild:
+## Part 2 — Autofill Extension
 
-```bash
-JOB_KEYWORDS=software engineer, typescript   # job title / keywords
-JOB_LOCATION=Remote                          # e.g. "Bengaluru, India", "New York, NY"
-JOB_POSTED_WITHIN_DAYS=7                      # recency filter
+Loads the jobs Part 1 found (`jobs-export.json`), matches the current tab to a
+posting, tracks Applied/Skipped status, and auto-fills — or Fill & Submits —
+application forms from your saved profile. Handles text, radio, checkbox, and
+native `<select>` fields, and **learns** answers to unknown fields locally.
+
+```
+1. npm install                       # builds shared types the extension imports
+2. chrome://extensions → Developer mode
+3. Load unpacked → packages/autofill-extension/src
+4. Pin it, fill your profile, load your jobs, open an application, click Fill.
 ```
 
-Edit `.env`, save, and the next run picks it up. (Copy `.env.example` to `.env`
-if you haven't yet.)
+See [`packages/autofill-extension`](packages/autofill-extension) for the full
+flow (job context, status tracking, autofill, learning, and the pipeline
+contract).
 
-**Multiple searches** (optional) — run several title/location combos in one go;
-all feed the same sheet (deduped):
+## How Parts 1 and 2 connect
 
-```bash
-JOB_SEARCHES=software engineer @ Remote | data analyst @ Bengaluru, India
+```
+Part 1 ──writes──▶ jobs-export.json ──load──▶ Extension
+Extension ──"Export status updates"──▶ status-updates.json ──read──▶ Part 1 ──▶ Sheet
 ```
 
-`JOB_SEARCHES` overrides `JOB_KEYWORDS`/`JOB_LOCATION` when set.
+File shapes live in `@smartapply/shared` (`JobsExport`, `StatusUpdatesFile`).
 
-## Setup levels
+## Capabilities reference
 
-The pipeline works with or without Google — pick what you need:
-
-**Minimal setup (local only, no Google account)**
-1. `npm install && npm run build`
-2. `npm run login:indeed` (sign into Indeed once)
-3. Set `INDEED_ENABLED=true` and your `JOB_*` prefs in `.env`
-4. `npm run search` → jobs saved to **`data/jobs.xlsx`** locally.
-
-That's it — no service account, no cloud. Google Sheets is skipped automatically
-when `GOOGLE_SHEETS_SPREADSHEET_ID` is unset.
-
-**Full setup (adds Google Sheets sync)**
-- Do the minimal steps, then add a service account + `GOOGLE_SHEETS_SPREADSHEET_ID`
-  (see [job-search README → Google Sheets sync](packages/job-search/README.md#google-sheets-sync-optional)).
-- Every run then also upserts into your own Google Sheet.
-
-## Hourly scheduler — on/off
-
-The pipeline can run automatically every hour (macOS `launchd`). Toggle it with:
-
-```bash
-npm run schedule:on       # turn hourly runs ON
-npm run schedule:off      # turn hourly runs OFF
-npm run schedule:now      # run once, right now
-npm run schedule:status   # check if it's on
-```
-
-`off` persists across reboots. Scheduled runs require the laptop to be **awake
-and logged in** (a headed Chrome window opens briefly each run — Indeed blocks
-headless). See the [job-search README](packages/job-search/README.md#hourly-scheduling-macos-launchd)
-for setup details and caveats.
-
-## Captured data
-
-- [`packages/job-search/data/indeed-software-engineer-remote.json`](packages/job-search/data/indeed-software-engineer-remote.json)
-  — a real Indeed capture (Software Engineer · Remote): 15 roles with title,
-  company, location, and link.
-- `data/jobs.xlsx` — the workbook those rows were imported into.
-
-> Note on gaps: Indeed's list view does not expose date-posted, end date, or
-> recruiter contact, so those columns are empty for Indeed rows. Boards like
-> LinkedIn/Naukri, or a contact-lookup provider via the `enrichRecruiter` hook,
-> are needed to fill them.
+For a single reference of everything the app can do so far — across Part 1 and
+Part 2 — see [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).

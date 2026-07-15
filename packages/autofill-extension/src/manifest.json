@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "SmartApply Autofill",
+  "version": "0.1.0",
+  "description": "Auto-fills job application forms with your saved profile.",
+  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "action": {
+    "default_title": "SmartApply Autofill",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ]
+}
