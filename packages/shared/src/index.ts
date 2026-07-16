@@ -96,6 +96,51 @@ export interface StatusUpdatesFile {
   updates: StatusUpdate[];
 }
 
+/**
+ * Curated answer bank (Part 2).
+ *
+ * The user maintains a set of question -> answer pairs that the extension uses
+ * to fill application forms, beyond the fixed profile fields. It is kept as a
+ * repo file (`data/answers.json`) the user owns, imported into / exported from
+ * the extension's Options page. Precedence when filling a field: profile field
+ * match -> curated answer bank -> auto-learned answers.
+ */
+
+/** How a curated answer is applied to the matched form control. */
+export type AnswerType = "text" | "textarea" | "select" | "radio" | "checkbox";
+
+/** One curated question -> answer pair. */
+export interface AnswerEntry {
+  /** Stable id (used as the React-less list key and for edits). */
+  id: string;
+  /** Canonical prompt, e.g. "Are you authorized to work in the US?". */
+  question: string;
+  /** Other phrasings / keywords matched against a form field's label. */
+  aliases?: string[];
+  /** Which kind of control this answers, so it's applied correctly. */
+  type: AnswerType;
+  /** The answer text, or the option text to select for select/radio. */
+  value: string;
+  /** For select/radio: the allowed option texts (optional hint). */
+  options?: string[];
+  /** Freeform note for the user (never used for matching). */
+  notes?: string;
+}
+
+/**
+ * The `answers.json` file: the user's complete "application data" — the
+ * structured profile plus the curated Q&A bank — in one place.
+ */
+export interface AnswerBank {
+  version: 1;
+  /** ISO timestamp of the last export. */
+  updatedAt: string;
+  /** The structured profile fields (mirrors the extension profile). */
+  profile: Record<string, string>;
+  /** The curated question -> answer pairs. */
+  answers: AnswerEntry[];
+}
+
 /** Result of matching a resume against a job description (Part 3). */
 export interface MatchResult {
   /** 0–1 overall fit. */

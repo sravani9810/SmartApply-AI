@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "updatedAt": "2026-01-01T00:00:00.000Z",
+  "profile": {
+    "firstName": "",
+    "lastName": "",
+    "email": "",
+    "phone": "",
+    "address": "",
+    "city": "",
+    "state": "",
+    "zipcode": "",
+    "country": "",
+    "linkedin": "",
+    "website": "",
+    "currentCompany": "",
+    "currentTitle": "",
+    "yearsExperience": "",
+    "coverLetter": "",
+    "workAuthorized": "",
+    "requiresSponsorship": "",
+    "gender": "",
+    "veteranStatus": "",
+    "disabilityStatus": ""
+  },
+  "answers": [
+    {
+      "id": "work-authorization",
+      "question": "Are you legally authorized to work in this country?",
+      "aliases": ["authorized to work", "work authorization", "eligible to work", "right to work"],
+      "type": "radio",
+      "value": "Yes",
+      "options": ["Yes", "No"]
+    },
+    {
+      "id": "requires-sponsorship",
+      "question": "Will you now or in the future require visa sponsorship?",
+      "aliases": ["require sponsorship", "need sponsorship", "visa sponsorship"],
+      "type": "radio",
+      "value": "No",
+      "options": ["Yes", "No"]
+    },
+    {
+      "id": "notice-period",
+      "question": "What is your notice period?",
+      "aliases": ["notice period", "when can you start", "availability to start", "earliest start date"],
+      "type": "text",
+      "value": "2 weeks"
+    },
+    {
+      "id": "salary-expectation",
+      "question": "What are your salary expectations?",
+      "aliases": ["salary expectation", "expected salary", "compensation expectation", "desired salary"],
+      "type": "text",
+      "value": ""
+    },
+    {
+      "id": "how-did-you-hear",
+      "question": "How did you hear about this position?",
+      "aliases": ["how did you hear", "referral source", "where did you find"],
+      "type": "select",
+      "value": "LinkedIn",
+      "options": ["LinkedIn", "Indeed", "Company website", "Referral", "Other"]
+    },
+    {
+      "id": "gender-eeo",
+      "question": "Gender (voluntary EEO self-identification)",
+      "aliases": ["gender"],
+      "type": "select",
+      "value": "Decline to self-identify",
+      "options": ["Male", "Female", "Decline to self-identify"]
+    }
+  ]
+}
