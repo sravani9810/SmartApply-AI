@@ -46,7 +46,7 @@ async function autofill(submit) {
     return;
   }
   const profile = readForm();
-  const { learned = {} } = await chrome.storage.local.get("learned");
+  const { learned = {}, answers = [] } = await chrome.storage.local.get(["learned", "answers"]);
   try {
     // Inject the filler into every frame (idempotent), then call it. Using
     // scripting.executeScript avoids "receiving end doesn't exist" errors from
@@ -57,8 +57,8 @@ async function autofill(submit) {
     });
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
-      args: [profile, learned, submit],
-      func: (p, l, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, l, s) : { filled: 0 }),
+      args: [profile, learned, answers, submit],
+      func: (p, l, a, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, l, a, s) : { filled: 0 }),
     });
     const filled = results.reduce((n, r) => n + (r.result?.filled || 0), 0);
     const submitted = results.some((r) => r.result?.submitted);

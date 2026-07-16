@@ -11,6 +11,9 @@
   // Learned answers ({ normalizedLabel: value }) and settings, cached here and
   // kept fresh via storage change events.
   let learned = {};
+  // Curated answer bank (AnswerEntry[]) from the Options page — see
+  // @smartapply/shared. Takes priority over learned when filling.
+  let answers = [];
   let learningEnabled = true;
   let isAppPage = false; // gate learning to application-like pages
 
@@ -44,6 +47,31 @@
   const CONSENT_RE = /agree|terms|privacy|consent|subscribe|newsletter|opt.?in|acknowledge|certify/i;
 
   const norm = (s) => (s || "").replace(/[\s*:_-]+/g, " ").trim().toLowerCase();
+
+  const AFFIRMATIVE_RE = /^(yes|true|checked)$/i;
+
+  /**
+   * Best curated answer whose question/aliases match a field's label, scored by
+   * the longest matched phrase (more specific wins). `types` limits which entry
+   * kinds are eligible (e.g. ["radio"] when filling a radio group).
+   */
+  function matchAnswer(label, types, entries = answers) {
+    const L = norm(label);
+    if (!L || !Array.isArray(entries)) return null;
+    let best = null;
+    let bestLen = 0;
+    for (const e of entries) {
+      if (!e || !types.includes(e.type) || !e.value) continue;
+      const needles = [e.question, ...(e.aliases || [])].map(norm).filter(Boolean);
+      for (const n of needles) {
+        if ((L.includes(n) || n.includes(L)) && n.length > bestLen) {
+          best = e;
+          bestLen = n.length;
+        }
+      }
+    }
+    return best;
+  }
 
   function valueFor(profile, field) {
     if (field === "fullName" && !profile.fullName) {
@@ -135,8 +163,11 @@
     el.type !== "file" &&
     el.offsetParent !== null;
 
-  /** Fill text/textarea/select from the profile, falling back to learned answers. */
-  function fillForm(profile, learnedMap = learned) {
+  /**
+   * Fill text/textarea/select. Precedence per field: profile field match ->
+   * curated answer bank -> auto-learned answers.
+   */
+  function fillForm(profile, learnedMap = learned, answerList = answers) {
     let filled = 0;
     for (const el of deepFields()) {
       if (!fillable(el) || isChoice(el)) continue;
@@ -144,10 +175,12 @@
       if (!isSelect && el.value.trim()) continue;
       const field = fieldFor(el);
       let value = field ? valueFor(profile, field) : "";
-      if (!value && learnedMap) {
-        const k = humanLabel(el);
-        if (k && learnedMap[k]) value = learnedMap[k];
+      const label = humanLabel(el);
+      if (!value) {
+        const entry = matchAnswer(label, isSelect ? ["select", "text"] : ["text", "textarea"], answerList);
+        if (entry) value = entry.value;
       }
+      if (!value && learnedMap && label && learnedMap[label]) value = learnedMap[label];
       if (!value) continue;
       if (isSelect) {
         if (el.value) continue;
@@ -196,8 +229,10 @@
     return "";
   }
 
-  /** Select radio options from the profile / learned answers; tick yes checkboxes. */
-  function fillChoices(profile, learnedMap = learned) {
+  /** Select radio options and tick affirmative checkboxes. Precedence per group:
+   *  profile field -> curated answer bank -> learned. Consent boxes are never
+   *  auto-ticked. */
+  function fillChoices(profile, learnedMap = learned, answerList = answers) {
     let filled = 0;
     const radioGroups = new Map();
     const checkboxes = [];
@@ -217,6 +252,10 @@
       const question = group.map(groupQuestion).find(Boolean) || "";
       const field = choiceFieldFor(question);
       let answer = field ? (profile[field] ?? "").toLowerCase() : "";
+      if (!answer) {
+        const entry = matchAnswer(question, ["radio"], answerList);
+        if (entry) answer = entry.value.toLowerCase();
+      }
       if (!answer && learnedMap) {
         const k = norm(question);
         if (k && learnedMap[k]) answer = String(learnedMap[k]).toLowerCase();
@@ -239,7 +278,14 @@
       if (CONSENT_RE.test(context)) continue; // never auto-accept consent/terms
       const field = choiceFieldFor(context);
       const answer = (profile[field] ?? "").toLowerCase();
-      if (field && answer === "yes" && /\byes\b|authorized|eligible/.test(optionLabel(el))) {
+      let tick =
+        field && answer === "yes" && /\byes\b|authorized|eligible/.test(optionLabel(el));
+      if (!tick) {
+        // Curated checkbox entry: only tick on an explicit affirmative value.
+        const entry = matchAnswer(context, ["checkbox"], answerList);
+        tick = Boolean(entry && AFFIRMATIVE_RE.test(entry.value.trim()));
+      }
+      if (tick) {
         el.checked = true;
         el.dispatchEvent(new Event("change", { bubbles: true }));
         filled++;
@@ -303,19 +349,29 @@
   }
   document.addEventListener("change", (e) => remember(e.target), true);
 
-  // Entry point the popup calls via chrome.scripting.executeScript.
-  window.__smartApplyFill = (profile, learnedMap, submit) => ({
-    filled: fillForm(profile, learnedMap || learned) + fillChoices(profile, learnedMap || learned),
-    submitted: submit ? submitForm() : false,
-  });
+  // Entry point the popup calls via chrome.scripting.executeScript. The popup
+  // passes learned + answers explicitly (this freshly-injected script may not
+  // have finished its async storage load yet).
+  window.__smartApplyFill = (profile, learnedMap, answerList, submit) => {
+    const l = learnedMap || learned;
+    const a = answerList || answers;
+    return {
+      filled: fillForm(profile, l, a) + fillChoices(profile, l, a),
+      submitted: submit ? submitForm() : false,
+    };
+  };
 
   // Keep cached state fresh.
-  chrome.storage.local.get("learned").then(({ learned: l }) => { if (l) learned = l; });
+  chrome.storage.local.get(["learned", "answers"]).then(({ learned: l, answers: a }) => {
+    if (l) learned = l;
+    if (Array.isArray(a)) answers = a;
+  });
   chrome.storage.sync.get("settings").then(({ settings }) => {
     learningEnabled = settings?.learningEnabled ?? true;
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.learned) learned = changes.learned.newValue || {};
+    if (area === "local" && changes.answers) answers = changes.answers.newValue || [];
     if (area === "sync" && changes.settings) {
       learningEnabled = changes.settings.newValue?.learningEnabled ?? true;
     }
@@ -323,11 +379,12 @@
 
   // --- Auto-fill when an application page opens ---
   (async function autoFillOnOpen() {
-    const [{ settings, profile }, { learned: l }] = await Promise.all([
+    const [{ settings, profile }, { learned: l, answers: a }] = await Promise.all([
       chrome.storage.sync.get(["settings", "profile"]),
-      chrome.storage.local.get("learned"),
+      chrome.storage.local.get(["learned", "answers"]),
     ]);
     if (l) learned = l;
+    if (Array.isArray(a)) answers = a;
     learningEnabled = settings?.learningEnabled ?? true;
     if (!(settings?.autofillOnOpen ?? true) || !profile) return;
 
