@@ -94,6 +94,8 @@ async function showLearnedCount() {
     : "No learned answers yet — fill a form and it'll remember.";
 }
 
+$("openOptions").addEventListener("click", () => chrome.runtime.openOptionsPage());
+
 $("clearLearned").addEventListener("click", async () => {
   await chrome.storage.local.set({ learned: {} });
   await showLearnedCount();

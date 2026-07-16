@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>SmartApply — Options</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { font: 14px system-ui, sans-serif; max-width: 860px; margin: 0 auto; padding: 24px 20px 60px; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      h2 { font-size: 12px; text-transform: uppercase; color: #888; letter-spacing: .05em; margin: 28px 0 10px; }
+      p.lead { color: #666; margin: 0 0 8px; }
+      .muted { color: #999; }
+
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+      .field { display: flex; flex-direction: column; }
+      .field.wide { grid-column: 1 / -1; }
+      label { color: #555; margin-bottom: 3px; }
+      input, textarea, select { font: inherit; padding: 6px 8px; box-sizing: border-box; width: 100%; border: 1px solid #ccc; border-radius: 5px; background: Field; color: FieldText; }
+      textarea { min-height: 64px; resize: vertical; }
+
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+      .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-bottom: 8px; }
+      .afield { display: flex; flex-direction: column; color: #555; font-size: 13px; }
+      .afield select { text-transform: capitalize; }
+
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      button { font: inherit; padding: 7px 14px; border: 1px solid #bbb; border-radius: 6px; background: #f5f5f5; cursor: pointer; }
+      button.primary { background: #2a7; border-color: #2a7; color: #fff; }
+      button.danger { background: none; border-color: #e0b4b4; color: #a33; padding: 4px 10px; }
+      @media (prefers-color-scheme: dark) {
+        .card { border-color: #444; } button { background: #333; border-color: #555; color: #eee; }
+        h2, label, .afield { color: #aaa; } p.lead { color: #aaa; }
+      }
+
+      #status { position: sticky; bottom: 0; margin-top: 16px; padding: 8px 0; color: #2a7; min-height: 18px; background: Canvas; }
+      hr { border: none; border-top: 1px solid #eee; margin: 24px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>SmartApply — Options</h1>
+    <p class="lead">
+      Your profile and curated answers. These fill application forms across any
+      site. Everything stays in your browser; export to keep a copy in your repo.
+    </p>
+
+    <h2>Profile</h2>
+    <div id="profileGrid" class="grid"></div>
+    <div class="actions"><button id="saveProfile" class="primary">Save profile</button></div>
+
+    <hr />
+
+    <h2>Answer bank</h2>
+    <p class="lead">
+      Question → answer pairs for the free-form fields no profile covers (notice
+      period, sponsorship, “how did you hear about us”). Add <em>aliases</em> so
+      one entry matches many form phrasings. Consent/terms boxes are never
+      auto-ticked.
+    </p>
+    <div id="answers"></div>
+    <div class="actions">
+      <button id="addAnswer">+ Add answer</button>
+      <button id="saveAnswers" class="primary">Save answers</button>
+    </div>
+
+    <hr />
+
+    <h2>Data file (answers.json)</h2>
+    <p class="lead">
+      Export to save your profile + answers as <code>answers.json</code> (keep it
+      in the repo’s <code>data/</code> folder). Import to load one back in.
+    </p>
+    <div class="actions">
+      <button id="exportBank">Export answers.json</button>
+      <label class="actions" style="margin:0;">
+        <input type="file" id="importBank" accept="application/json,.json" style="width:auto;border:none;" />
+      </label>
+    </div>
+
+    <div id="status"></div>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
