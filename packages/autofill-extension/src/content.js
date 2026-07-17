@@ -48,6 +48,18 @@
 
   const norm = (s) => (s || "").replace(/[\s*:_-]+/g, " ").trim().toLowerCase();
 
+  // True while this content script can still reach the extension APIs. After the
+  // extension is reloaded or updated, content scripts already running in open
+  // tabs are orphaned and any chrome.* call throws "Extension context
+  // invalidated" / "receiving end does not exist". Guard storage access with it.
+  const extAlive = () => {
+    try {
+      return Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
+  };
+
   const AFFIRMATIVE_RE = /^(yes|true|checked)$/i;
 
   /**
@@ -318,7 +330,7 @@
 
   // --- Learn what you type on application forms ---
   async function remember(el) {
-    if (!learningEnabled || !el || el.disabled) return;
+    if (!learningEnabled || !el || el.disabled || !extAlive()) return;
     if (!isAppPage) {
       if (looksLikeApplicationForm()) isAppPage = true;
       else return;
@@ -341,11 +353,16 @@
       return; // don't learn checkboxes (avoid auto-accepting consent later)
     }
     if (!key || !val) return;
-    const { learned: cur = {} } = await chrome.storage.local.get("learned");
-    if (cur[key] === val) return;
-    cur[key] = val;
-    learned = cur;
-    await chrome.storage.local.set({ learned: cur });
+    try {
+      const { learned: cur = {} } = await chrome.storage.local.get("learned");
+      if (cur[key] === val) return;
+      cur[key] = val;
+      learned = cur;
+      await chrome.storage.local.set({ learned: cur });
+    } catch {
+      // Extension reloaded/updated: this stale script can't reach storage. A
+      // fresh content script is injected on the next page load — ignore.
+    }
   }
   document.addEventListener("change", (e) => remember(e.target), true);
 
@@ -361,14 +378,14 @@
     };
   };
 
-  // Keep cached state fresh.
+  // Keep cached state fresh. Ignore rejections (an orphaned script post-reload).
   chrome.storage.local.get(["learned", "answers"]).then(({ learned: l, answers: a }) => {
     if (l) learned = l;
     if (Array.isArray(a)) answers = a;
-  });
+  }).catch(() => {});
   chrome.storage.sync.get("settings").then(({ settings }) => {
     learningEnabled = settings?.learningEnabled ?? true;
-  });
+  }).catch(() => {});
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.learned) learned = changes.learned.newValue || {};
     if (area === "local" && changes.answers) answers = changes.answers.newValue || [];
@@ -379,10 +396,15 @@
 
   // --- Auto-fill when an application page opens ---
   (async function autoFillOnOpen() {
-    const [{ settings, profile }, { learned: l, answers: a }] = await Promise.all([
-      chrome.storage.sync.get(["settings", "profile"]),
-      chrome.storage.local.get(["learned", "answers"]),
-    ]);
+    let settings, profile, l, a;
+    try {
+      [{ settings, profile }, { learned: l, answers: a }] = await Promise.all([
+        chrome.storage.sync.get(["settings", "profile"]),
+        chrome.storage.local.get(["learned", "answers"]),
+      ]);
+    } catch {
+      return; // orphaned script (extension reloaded) — nothing to fill with
+    }
     if (l) learned = l;
     if (Array.isArray(a)) answers = a;
     learningEnabled = settings?.learningEnabled ?? true;
