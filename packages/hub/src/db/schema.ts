@@ -217,6 +217,22 @@ export const resumes = sqliteTable("resumes", {
   flavorId: text("flavor_id").references(() => flavors.id, { onDelete: "set null" }),
   resumeData: text("resume_data", { mode: "json" }).notNull(),
   pdfHash: text("pdf_hash"),
+  /** Human label for the résumé library (e.g. "Stripe — Backend"). */
+  label: text("label"),
+  /** The job description this résumé was composed against (composer). */
+  jd: text("jd"),
+  /** Free-form edit directives given to the composer ("add Kubernetes", …). */
+  instructions: text("instructions"),
+  /** Company this résumé was aimed at, if any. */
+  company: text("company"),
+  /** Domain/track, e.g. frontend | backend | sde | cloud. */
+  domain: text("domain"),
+  /** Main technologies featured, for the library view. */
+  technologies: text("technologies", { mode: "json" }).$type<string[]>(),
+  /** Target role framing, e.g. "internship", "senior backend". */
+  targetRole: text("target_role"),
+  /** Whether Claude composed this résumé (vs the deterministic fallback). */
+  usedClaude: integer("used_claude", { mode: "boolean" }),
   createdAt: text("created_at").notNull().default(now),
 });
 

@@ -37,6 +37,55 @@ export async function bulkSetStatus(ids: string[], status: string) {
   revalidatePath("/applications");
 }
 
+export interface ComposeResult {
+  ok: boolean;
+  error?: string;
+  resumeId?: string;
+  usedClaude?: boolean;
+  meta?: { company: string; domain: string; technologies: string[]; targetRole: string };
+  data?: import("@smartapply/shared").ResumeData;
+}
+
+/**
+ * Compose a résumé from a pasted JD + free-form edit instructions (the prompt
+ * engine), save it to the résumé library, and return it for live preview.
+ */
+export async function composeResumeAction(input: {
+  jd?: string; instructions?: string; flavorId?: string; targetRole?: string;
+}): Promise<ComposeResult> {
+  try {
+    const { composeResume } = await import("../lib/compose");
+    const { resumeData, meta, usedClaude } = await composeResume({
+      jd: input.jd?.trim() || undefined,
+      instructions: input.instructions?.trim() || undefined,
+      flavorId: input.flavorId || undefined,
+      targetRole: input.targetRole?.trim() || undefined,
+    });
+
+    const label = [meta.company || meta.domain || "Résumé", meta.targetRole]
+      .filter(Boolean).join(" — ");
+    const id = crypto.randomUUID();
+    db.insert(s.resumes).values({
+      id,
+      flavorId: input.flavorId || null,
+      resumeData,
+      label,
+      jd: input.jd?.trim() || null,
+      instructions: input.instructions?.trim() || null,
+      company: meta.company || null,
+      domain: meta.domain || null,
+      technologies: meta.technologies,
+      targetRole: meta.targetRole || null,
+      usedClaude,
+    }).run();
+
+    revalidatePath("/resumes");
+    return { ok: true, resumeId: id, usedClaude, meta, data: resumeData };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
 /** Run the Part 1 pipeline and upsert jobs into the DB (dashboard button). */
 export async function refreshJobs() {
   await runIngest();

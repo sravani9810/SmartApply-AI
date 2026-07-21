@@ -137,6 +137,32 @@ export function getResume(id: string) {
   return { ...r, data: r.resumeData as import("@smartapply/shared").ResumeData };
 }
 
+/** Résumé library rows (composed résumés), newest first, optionally by domain. */
+export function getResumes(domain?: string) {
+  const rows = db.select({
+    id: s.resumes.id,
+    label: s.resumes.label,
+    company: s.resumes.company,
+    domain: s.resumes.domain,
+    technologies: s.resumes.technologies,
+    targetRole: s.resumes.targetRole,
+    usedClaude: s.resumes.usedClaude,
+    createdAt: s.resumes.createdAt,
+  }).from(s.resumes)
+    .where(domain ? eq(s.resumes.domain, domain) : sql`1=1`)
+    .orderBy(sql`${s.resumes.createdAt} desc`).all();
+  return rows;
+}
+
+/** Distinct domains present in the résumé library, with counts (for the filter bar). */
+export function getResumeDomains(): Record<string, number> {
+  const rows = db.select({ domain: s.resumes.domain, n: sql<number>`count(*)` })
+    .from(s.resumes).groupBy(s.resumes.domain).all();
+  const out: Record<string, number> = {};
+  for (const r of rows) if (r.domain) out[r.domain] = r.n;
+  return out;
+}
+
 export function getApplications() {
   return db.select({
     id: s.applications.id,

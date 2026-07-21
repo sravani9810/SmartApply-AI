@@ -1,0 +1,309 @@
+import { eq } from "drizzle-orm";
+import type { ResumeData } from "@smartapply/shared";
+import { db } from "../db/client";
+import * as s from "../db/schema";
+import { stripHtml } from "./tags";
+import { compile } from "./compile";
+import type { Selection } from "./compile";
+
+export interface ComposeInput {
+  /** Pasted job description the résumé targets (optional — can compose from instructions alone). */
+  jd?: string;
+  /** Free-form edit directives: "add Kubernetes", "remove the Acme role", "target internship". */
+  instructions?: string;
+  /** Optional base flavor to seed the selection from. */
+  flavorId?: string;
+  /** Optional explicit target role framing ("internship", "senior backend"). */
+  targetRole?: string;
+}
+
+export interface ComposeMeta {
+  company: string;
+  domain: string;
+  technologies: string[];
+  targetRole: string;
+}
+
+export interface ComposeOutcome {
+  resumeData: ResumeData;
+  meta: ComposeMeta;
+  usedClaude: boolean;
+}
+
+interface CandidateExp {
+  experienceId: string;
+  title: string;
+  company: string;
+  kind: "work" | "project";
+  bullets: { bulletId: string; text: string }[];
+}
+
+const CANDIDATES_PER_EXPERIENCE = 10;
+
+/** All approved bullets grouped by experience — the raw material Claude may pick from. */
+function candidates(): CandidateExp[] {
+  const exps = db.select().from(s.experiences).orderBy(s.experiences.ord).all();
+  return exps.map((e): CandidateExp => {
+    const bulletRows = db.select().from(s.bullets).where(eq(s.bullets.experienceId, e.id)).all()
+      .filter((b) => b.approved);
+    const bullets = bulletRows.map((b) => {
+      const variants = db.select().from(s.bulletVariants)
+        .where(eq(s.bulletVariants.bulletId, b.id)).all();
+      const text = variants.find((v) => v.isPrimary)?.text ?? variants[0]?.text ?? "";
+      return { bulletId: b.id, text: stripHtml(text) };
+    }).filter((b) => b.text);
+    return {
+      experienceId: e.id,
+      title: e.title,
+      company: e.company,
+      kind: e.kind === "project" ? "project" : "work",
+      bullets: bullets.slice(0, CANDIDATES_PER_EXPERIENCE),
+    };
+  }).filter((e) => e.bullets.length > 0);
+}
+
+function currentSkills(): string[] {
+  return db.select().from(s.skills).orderBy(s.skills.ord).all().map((x) => x.name);
+}
+
+function currentSummary(): string[] {
+  return db.select().from(s.summarySnippets).orderBy(s.summarySnippets.ord).all().map((x) => x.text);
+}
+
+// ── Claude output contract ───────────────────────────────────────────────────
+interface ComposePlan {
+  selection: Record<string, string[]>;
+  dropExperienceIds: string[];
+  skills: string[];
+  summary: string[];
+  meta: ComposeMeta;
+}
+
+function buildPrompt(input: ComposeInput, cands: CandidateExp[], skills: string[], summary: string[]): string {
+  const sections = cands.map((e) => {
+    const lines = e.bullets.map((b) => `    - id=${b.bulletId} :: ${b.text}`).join("\n");
+    return `  Experience ${e.experienceId} — ${e.title} @ ${e.company} (${e.kind}):\n${lines}`;
+  }).join("\n\n");
+
+  return `You are composing a tailored résumé for a candidate by (1) SELECTING and ORDERING \
+the candidate's own already-written, approved bullet points, and (2) applying the \
+candidate's explicit edit instructions to the skills list and summary. You must NOT \
+invent, rewrite, or fabricate work experience — bullets may ONLY be chosen from the \
+candidate ids below. Skills and the summary may be edited freely because the candidate \
+is directing their own résumé.
+
+${input.jd ? `JOB DESCRIPTION:\n${input.jd.slice(0, 8000)}\n` : "JOB DESCRIPTION: (none provided)\n"}
+${input.targetRole ? `TARGET ROLE: ${input.targetRole}\n` : ""}
+EDIT INSTRUCTIONS FROM THE CANDIDATE:
+${(input.instructions ?? "").slice(0, 2000) || "(none — just tailor to the JD)"}
+
+CURRENT SKILLS (edit per the instructions — add/remove/reorder as asked):
+${skills.join(", ") || "(none)"}
+
+CURRENT SUMMARY PARAGRAPHS (reframe per the target role/instructions):
+${summary.map((p, i) => `  ${i + 1}. ${p}`).join("\n") || "(none)"}
+
+CANDIDATE BULLETS (choose only from these ids):
+${sections}
+
+Return ONLY a single JSON object (no prose, no markdown fences) with this exact shape:
+{
+  "selection": { "<experienceId>": ["<bulletId>", ...ordered best-first], ... },
+  "dropExperienceIds": [<experienceIds to omit entirely, e.g. a company the candidate asked to remove>],
+  "skills": [<the final skill lines/tokens after applying add/remove instructions>],
+  "summary": [<1-2 reframed summary paragraphs targeting the role; [] to omit>],
+  "meta": {
+    "company": "<company the JD is for, or "" if unknown>",
+    "domain": "<one of: frontend, backend, sde, cloud, data, ml, or a short domain word>",
+    "technologies": [<the 4-8 main technologies this résumé emphasizes>],
+    "targetRole": "<the role framing, e.g. "internship" or "senior backend">"
+  }
+}
+
+Rules:
+- For each experience include only its 4-6 most relevant bullet ids (fewer if weak).
+- Use only bullet ids that appear above; never emit an id from a different experience.
+- If the instructions say to remove/exclude a company or role, put its experienceId in dropExperienceIds and omit it from selection.
+- When the instructions say "add <tech>", include that tech in "skills". When they say "remove <tech>", drop it from "skills".`;
+}
+
+function extractJson(text: string): unknown {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("no JSON object in response");
+  return JSON.parse(text.slice(start, end + 1));
+}
+
+function coerce(raw: unknown, validIds: Set<string>, fallbackSkills: string[]): ComposePlan {
+  const o = raw as Record<string, unknown>;
+  const strArr = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+
+  const selRaw = (o.selection ?? {}) as Record<string, unknown>;
+  const selection: Record<string, string[]> = {};
+  for (const [expId, ids] of Object.entries(selRaw)) {
+    if (!Array.isArray(ids)) continue;
+    const kept = ids.filter((id): id is string => typeof id === "string" && validIds.has(id));
+    if (kept.length) selection[expId] = kept;
+  }
+  if (Object.keys(selection).length === 0) throw new Error("empty/invalid selection");
+
+  const m = (o.meta ?? {}) as Record<string, unknown>;
+  return {
+    selection,
+    dropExperienceIds: strArr(o.dropExperienceIds),
+    skills: strArr(o.skills).length ? strArr(o.skills) : fallbackSkills,
+    summary: strArr(o.summary),
+    meta: {
+      company: typeof m.company === "string" ? m.company : "",
+      domain: typeof m.domain === "string" ? m.domain : "",
+      technologies: strArr(m.technologies),
+      targetRole: typeof m.targetRole === "string" ? m.targetRole : "",
+    },
+  };
+}
+
+/** Ask Claude (subscription, Agent SDK) to compose. Returns null → deterministic fallback. */
+async function planWithClaude(
+  input: ComposeInput, cands: CandidateExp[], skills: string[], summary: string[],
+): Promise<ComposePlan | null> {
+  if (process.env.HUB_DISABLE_CLAUDE === "1") return null;
+  const validIds = new Set<string>();
+  for (const e of cands) for (const b of e.bullets) validIds.add(b.bulletId);
+
+  try {
+    const { query } = await import("@anthropic-ai/claude-agent-sdk");
+    const q = query({
+      prompt: buildPrompt(input, cands, skills, summary),
+      options: {
+        maxTurns: 1,
+        permissionMode: "bypassPermissions",
+        allowedTools: [],
+        systemPrompt:
+          "You are a precise résumé composer. You select and order the candidate's " +
+          "existing approved bullets and apply their edit instructions to skills and " +
+          "summary. You never fabricate work experience. You reply with a single JSON " +
+          "object and nothing else.",
+        ...(process.env.HUB_TAILOR_MODEL ? { model: process.env.HUB_TAILOR_MODEL } : {}),
+      },
+    });
+
+    let text = "";
+    for await (const message of q as AsyncIterable<Record<string, unknown>>) {
+      const blocks = (message.content as Array<Record<string, unknown>> | undefined) ?? [];
+      for (const b of blocks) if (b.type === "text" && typeof b.text === "string") text += b.text;
+      if (message.type === "result" && typeof message.result === "string") text += message.result;
+    }
+    if (!text.trim()) return null;
+    return coerce(extractJson(text), validIds, skills);
+  } catch (err) {
+    console.warn("[compose] Claude Agent SDK unavailable/failed, using deterministic fallback:", (err as Error).message);
+    return null;
+  }
+}
+
+// ── Deterministic fallback ───────────────────────────────────────────────────
+const FALLBACK_PER_EXPERIENCE = 6;
+
+/** Parse simple "add X" / "remove X" directives out of the free-form instructions. */
+function parseDirectives(instructions: string) {
+  const add: string[] = [];
+  const remove: string[] = [];
+  for (const raw of instructions.split(/[\n,;]+/)) {
+    const line = raw.trim();
+    let mm: RegExpMatchArray | null;
+    if ((mm = line.match(/^\+?\s*add\s+(.+)$/i))) add.push(mm[1].trim());
+    else if ((mm = line.match(/^-?\s*(?:remove|drop|delete)\s+(.+)$/i))) remove.push(mm[1].trim());
+  }
+  return { add, remove };
+}
+
+function deterministic(input: ComposeInput, cands: CandidateExp[], skills: string[], summary: string[]): ComposePlan {
+  const flavorSel = input.flavorId
+    ? new Set(db.select().from(s.flavorBullets).where(eq(s.flavorBullets.flavorId, input.flavorId)).all().map((r) => r.bulletId))
+    : null;
+
+  const { add, remove } = parseDirectives(input.instructions ?? "");
+  const removeLc = remove.map((r) => r.toLowerCase());
+
+  // Drop experiences whose company/title the instructions asked to remove.
+  const dropExperienceIds = cands
+    .filter((e) => removeLc.some((r) => e.company.toLowerCase().includes(r) || e.title.toLowerCase().includes(r)))
+    .map((e) => e.experienceId);
+  const dropSet = new Set(dropExperienceIds);
+
+  const selection: Record<string, string[]> = {};
+  for (const e of cands) {
+    if (dropSet.has(e.experienceId)) continue;
+    let pool = e.bullets;
+    if (flavorSel) {
+      const preferred = pool.filter((b) => flavorSel.has(b.bulletId));
+      if (preferred.length) pool = preferred;
+    }
+    const ids = pool.slice(0, FALLBACK_PER_EXPERIENCE).map((b) => b.bulletId);
+    if (ids.length) selection[e.experienceId] = ids;
+  }
+
+  // Apply add/remove to the skills list (token-level).
+  let outSkills = skills.filter((sk) => !removeLc.some((r) => sk.toLowerCase().includes(r)));
+  for (const a of add) if (!outSkills.some((sk) => sk.toLowerCase() === a.toLowerCase())) outSkills.push(a);
+
+  const technologies = [...add, ...outSkills].slice(0, 8);
+  return {
+    selection,
+    dropExperienceIds,
+    skills: outSkills,
+    summary,
+    meta: {
+      company: "",
+      domain: input.flavorId
+        ? (db.select().from(s.flavors).where(eq(s.flavors.id, input.flavorId)).get()?.name ?? "")
+        : "",
+      technologies,
+      targetRole: input.targetRole ?? "",
+    },
+  };
+}
+
+/**
+ * Compose a résumé: pick/order the candidate's approved bullets and apply their
+ * edit instructions to skills/summary, via Claude (subscription) with a
+ * deterministic fallback. Returns a ready-to-render ResumeData + library metadata.
+ */
+export async function composeResume(input: ComposeInput): Promise<ComposeOutcome> {
+  const cands = candidates();
+  const skills = currentSkills();
+  const summary = currentSummary();
+
+  const plan = await planWithClaude(input, cands, skills, summary);
+  const usedClaude = plan !== null;
+  const p = plan ?? deterministic(input, cands, skills, summary);
+  if (input.targetRole && !p.meta.targetRole) p.meta.targetRole = input.targetRole;
+
+  // Compile a base ResumeData from the selection, then apply the plan's overrides.
+  const selection: Selection = new Map(Object.entries(p.selection));
+  const base = compile(input.flavorId ?? "", selection);
+  const drop = new Set(p.dropExperienceIds);
+  // dropExperienceIds are ids; compile already filtered to selected experiences,
+  // but honor an explicit drop by company name too (Claude may name it there).
+  const dropNames = cands.filter((e) => drop.has(e.experienceId)).map((e) => e.company.toLowerCase());
+  const keep = (entryCompany: string) => !dropNames.includes(entryCompany.toLowerCase());
+
+  const resumeData: ResumeData = {
+    ...base,
+    skills: p.skills.length ? chunkSkills(p.skills) : base.skills,
+    summary: p.summary.length ? p.summary : base.summary,
+    work_experience: base.work_experience.filter((e) => keep(e.company)),
+    projects: (base.projects ?? []).filter((e) => keep(e.company)),
+  };
+
+  return { resumeData, meta: p.meta, usedClaude };
+}
+
+/** Pack skill tokens into pipe-joined lines when Claude returns a flat token list. */
+function chunkSkills(skills: string[], perLine = 15): string[] {
+  // If the model already returned full lines (containing "|"), keep them as-is.
+  if (skills.some((sk) => sk.includes("|"))) return skills;
+  const lines: string[] = [];
+  for (let i = 0; i < skills.length; i += perLine) lines.push(skills.slice(i, i + perLine).join(" | "));
+  return lines;
+}

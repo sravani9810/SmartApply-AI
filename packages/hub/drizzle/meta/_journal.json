@@ -15,6 +15,13 @@
       "when": 1784644662465,
       "tag": "0001_harsh_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784665937251,
+      "tag": "0002_loose_pandemic",
+      "breakpoints": true
     }
   ]
 }

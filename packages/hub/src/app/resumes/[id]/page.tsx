@@ -14,14 +14,28 @@ export default async function ResumePage({ params }: { params: Promise<{ id: str
     (resume.data.work_experience?.reduce((n, e) => n + e.description.length, 0) ?? 0) +
     (resume.data.projects?.reduce((n, e) => n + e.description.length, 0) ?? 0);
 
+  const techs = (resume.technologies ?? []) as string[];
+
   return (
     <main className="wrap">
-      <Link href="/applications" className="backlink">← applications</Link>
+      <Link href="/resumes" className="backlink">← résumé library</Link>
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", marginTop: 10 }}>
-        <h1 style={{ marginBottom: 0 }}>Tailored résumé</h1>
+        <h1 style={{ marginBottom: 0 }}>{resume.label || "Tailored résumé"}</h1>
         <a className="btn" href={`/api/resume/${id}/pdf`} target="_blank" rel="noreferrer">Download PDF</a>
       </div>
-      <p className="sub">{counts} bullets selected. PDF renders through Part 4&apos;s CV template.</p>
+      <p className="sub">
+        {[resume.company, resume.domain, resume.targetRole].filter(Boolean).join(" · ")}
+        {resume.company || resume.domain || resume.targetRole ? " · " : ""}
+        {counts} bullets · {resume.usedClaude ? "Claude" : "deterministic"}
+      </p>
+      {techs.length ? (
+        <div className="tags" style={{ marginBottom: 8 }}>
+          {techs.map((t) => <span className="pill t" key={t}>{t}</span>)}
+        </div>
+      ) : null}
+      {resume.instructions ? (
+        <p className="muted" style={{ fontSize: 13 }}><b>Instructions:</b> {resume.instructions}</p>
+      ) : null}
       <ResumePreview data={resume.data} />
     </main>
   );

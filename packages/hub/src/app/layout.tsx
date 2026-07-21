@@ -20,6 +20,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="brand">SmartApply Hub</Link>
             <Link href="/">Dashboard</Link>
             <Link href="/library">Library</Link>
+            <Link href="/build">Compose</Link>
+            <Link href="/resumes">Résumés</Link>
             <Link href="/applications">Applications</Link>
           </div>
         </nav>
