@@ -137,6 +137,31 @@ export function getResume(id: string) {
   return { ...r, data: r.resumeData as import("@smartapply/shared").ResumeData };
 }
 
+/** The flat application-form fields the extension fills (address, EEO, …). */
+export function getApplicantFields(): Record<string, string> {
+  const row = db.select().from(s.profile).where(eq(s.profile.id, "me")).get();
+  return (row?.fields as Record<string, string> | null) ?? {};
+}
+
+/** Learned form answers (label → value) recorded by the extension. */
+export function getLearnedAnswers(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const r of db.select().from(s.learnedAnswers).all()) out[r.label] = r.value;
+  return out;
+}
+
+/** Upsert a learned form answer (label → value) posted by the extension. */
+export function recordLearnedAnswer(label: string, value: string) {
+  const l = label.trim();
+  const v = value.trim();
+  if (!l || !v) return;
+  const ts = new Date().toISOString();
+  db.insert(s.learnedAnswers)
+    .values({ label: l, value: v, updatedAt: ts })
+    .onConflictDoUpdate({ target: s.learnedAnswers.label, set: { value: v, updatedAt: ts } })
+    .run();
+}
+
 /** Résumé library rows (composed résumés), newest first, optionally by domain. */
 export function getResumes(domain?: string) {
   const rows = db.select({

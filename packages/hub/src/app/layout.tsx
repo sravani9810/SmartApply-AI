@@ -23,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/build">Compose</Link>
             <Link href="/resumes">Résumés</Link>
             <Link href="/applications">Applications</Link>
+            <Link href="/profile">Personal info</Link>
           </div>
         </nav>
         {children}

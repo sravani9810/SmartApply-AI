@@ -280,4 +280,6 @@ export const learnedAnswers = sqliteTable("learned_answers", {
 export const profile = sqliteTable("profile", {
   id: text("id").primaryKey(), // always "me"
   data: text("data", { mode: "json" }).$type<PersonalData>().notNull(),
+  /** Flat application-form fields the extension fills (address, EEO, work auth, …). */
+  fields: text("fields", { mode: "json" }).$type<Record<string, string>>(),
 });

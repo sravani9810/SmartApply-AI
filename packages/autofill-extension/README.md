@@ -61,10 +61,17 @@ fills the form from your saved profile.
   in the popup.
 - **Manual** — the popup's **Fill** / **Fill & Submit** buttons act on the
   active tab.
-- **Fields covered** — name, email, phone, address/city/state/zip/country,
-  LinkedIn, website, current company/title, years of experience, and cover
-  letter. Edit the profile in the popup; fields come from `PROFILE_FIELDS` in
-  `profile.js` (mirror the matchers in `content.js`).
+- **Personal info lives in the Hub.** You no longer type your details into the
+  extension. Edit them once on the Hub's **Personal info** page
+  (`http://localhost:3100/profile`) — name, email, phone, address, LinkedIn,
+  work eligibility, EEO, cover letter, etc. — then click **↻ Sync personal info
+  from Hub** in the popup. The extension caches those values and fills forms with
+  them. The field→value keys mirror the matchers in `content.js`.
+- **Unknown fields are pointed out and learned.** When the filler hits a field
+  it can't match, it **outlines that field in orange** and scrolls to it. Type
+  your answer and it's saved back to the Hub (`POST /api/learned`), so the same
+  question fills automatically next time — on any site. Learned answers are
+  listed on the Hub's Personal info page.
 
 It fills **only empty fields** (never overwrites what you typed) and matches by
 each field's name/id/label/placeholder/aria-label, setting values in a way

@@ -137,6 +137,11 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .fu-log { margin: 12px 0 0; padding-left: 22px; color: var(--muted); font-size: 12px; }
 .fu-log li { margin: 2px 0; line-height: 1.4; }
 
+/* personal info page */
+.pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.pgrid .fld > span em { font-style: normal; text-transform: none; letter-spacing: 0; }
+.pgrid textarea.edit { min-height: 70px; }
+
 /* résumé library */
 .reslib { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
 .rescard { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }

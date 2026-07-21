@@ -66,13 +66,19 @@
 
     <hr />
 
-    <h2>Autofill profile</h2>
+    <h2>Autofill</h2>
+    <div class="muted" style="margin-bottom:6px;">
+      Your personal info is managed in the Hub.
+      <a id="editProfile" href="#" target="_blank" rel="noreferrer">Edit personal info →</a>
+    </div>
+    <div id="profileInfo" class="muted" style="margin-bottom:6px;"></div>
+    <div class="row">
+      <button id="syncProfile">↻ Sync personal info from Hub</button>
+    </div>
     <label class="chk"><input type="checkbox" id="autofillOnOpen" /> Auto-fill when I open an application</label>
     <label class="chk"><input type="checkbox" id="learnToggle" /> Learn new answers as I fill forms</label>
     <div id="learnedInfo" class="muted" style="margin-bottom:6px;"></div>
-    <div id="profileFields"></div>
     <div class="row">
-      <button id="save">Save</button>
       <button id="fill">Fill</button>
       <button id="fillSubmit">Fill &amp; Submit</button>
     </div>

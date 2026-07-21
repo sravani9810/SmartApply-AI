@@ -13,6 +13,18 @@
   let learned = {};
   let learningEnabled = true;
   let isAppPage = false; // gate learning to application-like pages
+  let hubUrl = "http://localhost:3100"; // where learned answers are recorded
+
+  /** Push a learned answer to the hub so it's stored centrally (best-effort). */
+  async function postLearnedToHub(label, value) {
+    try {
+      await fetch(`${hubUrl.replace(/\/+$/, "")}/api/learned`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label, value }),
+      });
+    } catch { /* hub offline / different host — the local cache still has it */ }
+  }
 
   // Field -> substrings matched against a field's label/name/id/placeholder.
   const FIELD_MATCHERS = {
@@ -259,6 +271,48 @@
     return false;
   }
 
+  // --- Point to fields we couldn't fill so the user answers them (then learn) ---
+  function clearHighlight(el) {
+    if (el && el.dataset && el.dataset.saUnknown) {
+      el.style.outline = "";
+      el.style.outlineOffset = "";
+      delete el.dataset.saUnknown;
+    }
+  }
+
+  function highlightUnknown(el, scrollTo) {
+    if (!el || el.dataset.saUnknown) return;
+    el.dataset.saUnknown = "1";
+    el.style.outline = "2px solid #f0a03a";
+    el.style.outlineOffset = "1px";
+    if (!el.title) el.title = "SmartApply couldn't fill this — type your answer and it'll be saved to your Hub for next time.";
+    if (scrollTo) el.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  /**
+   * Outline the empty fields we have no answer for (not in the profile, not
+   * learned), so the user knows what to fill, and scroll to the first one.
+   * Returns how many were flagged.
+   */
+  function markUnknowns(profile, learnedMap = learned) {
+    let n = 0;
+    for (const el of deepFields()) {
+      if (!fillable(el) || isChoice(el)) continue;
+      if (el.value && el.value.trim()) { clearHighlight(el); continue; }
+      const field = fieldFor(el);
+      let value = field ? valueFor(profile, field) : "";
+      if (!value && learnedMap) {
+        const k = humanLabel(el);
+        if (k && learnedMap[k]) value = learnedMap[k];
+      }
+      if (value) { clearHighlight(el); continue; }
+      if (!humanLabel(el)) continue; // nothing to learn it by
+      highlightUnknown(el, n === 0); // scroll to the first unknown only
+      n++;
+    }
+    return n;
+  }
+
   function submitForm() {
     const btn = [...document.querySelectorAll("button, input[type=submit]")].find(
       (b) => /submit|apply|send/i.test(b.textContent || b.value || ""),
@@ -296,26 +350,36 @@
     }
     if (!key || !val) return;
     const { learned: cur = {} } = await chrome.storage.local.get("learned");
-    if (cur[key] === val) return;
+    if (cur[key] === val) { clearHighlight(el); return; }
     cur[key] = val;
     learned = cur;
     await chrome.storage.local.set({ learned: cur });
+    clearHighlight(el); // it's answered now
+    postLearnedToHub(key, val); // record it in the hub for next time
   }
   document.addEventListener("change", (e) => remember(e.target), true);
+  // Clear the "fill me" highlight as soon as the user starts typing.
+  document.addEventListener("input", (e) => { if (e.target?.value) clearHighlight(e.target); }, true);
 
   // Entry point the popup calls via chrome.scripting.executeScript.
-  window.__smartApplyFill = (profile, learnedMap, submit) => ({
-    filled: fillForm(profile, learnedMap || learned) + fillChoices(profile, learnedMap || learned),
-    submitted: submit ? submitForm() : false,
-  });
+  window.__smartApplyFill = (profile, learnedMap, submit) => {
+    const map = learnedMap || learned;
+    const filled = fillForm(profile, map) + fillChoices(profile, map);
+    const unknown = markUnknowns(profile, map);
+    return { filled, unknown, submitted: submit ? submitForm() : false };
+  };
 
   // Keep cached state fresh.
-  chrome.storage.local.get("learned").then(({ learned: l }) => { if (l) learned = l; });
+  chrome.storage.local.get(["learned", "hubUrl"]).then(({ learned: l, hubUrl: h }) => {
+    if (l) learned = l;
+    if (h) hubUrl = h;
+  });
   chrome.storage.sync.get("settings").then(({ settings }) => {
     learningEnabled = settings?.learningEnabled ?? true;
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.learned) learned = changes.learned.newValue || {};
+    if (area === "local" && changes.hubUrl) hubUrl = changes.hubUrl.newValue || hubUrl;
     if (area === "sync" && changes.settings) {
       learningEnabled = changes.settings.newValue?.learningEnabled ?? true;
     }
@@ -323,11 +387,12 @@
 
   // --- Auto-fill when an application page opens ---
   (async function autoFillOnOpen() {
-    const [{ settings, profile }, { learned: l }] = await Promise.all([
+    const [{ settings, profile }, { learned: l, hubUrl: h }] = await Promise.all([
       chrome.storage.sync.get(["settings", "profile"]),
-      chrome.storage.local.get("learned"),
+      chrome.storage.local.get(["learned", "hubUrl"]),
     ]);
     if (l) learned = l;
+    if (h) hubUrl = h;
     learningEnabled = settings?.learningEnabled ?? true;
     if (!(settings?.autofillOnOpen ?? true) || !profile) return;
 
@@ -337,6 +402,7 @@
       if (looksLikeApplicationForm()) {
         fillForm(profile);
         fillChoices(profile);
+        markUnknowns(profile); // point to fields we couldn't fill
         done = true;
         observer.disconnect();
       }

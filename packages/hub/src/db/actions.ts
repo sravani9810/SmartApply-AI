@@ -149,6 +149,27 @@ export async function duplicateResume(id: string) {
   redirect(`/resumes/${newId}`);
 }
 
+/** Save the applicant's application-form fields (the hub profile page). */
+export async function saveApplicantFields(formData: FormData) {
+  const { APPLICANT_FIELD_KEYS } = await import("../lib/applicantFields");
+  const fields: Record<string, string> = {};
+  for (const key of APPLICANT_FIELD_KEYS) {
+    const v = formData.get(key);
+    if (typeof v === "string" && v.trim()) fields[key] = v.trim();
+  }
+  const existing = db.select().from(s.profile).where(eq(s.profile.id, "me")).get();
+  if (existing) {
+    db.update(s.profile).set({ fields }).where(eq(s.profile.id, "me")).run();
+  } else {
+    const emptyPersonal = {
+      name: "", email: "", website: { readable: "", link: "" },
+      github: { readable: "", link: "" }, linkedin: { readable: "", link: "" }, skillset: [],
+    };
+    db.insert(s.profile).values({ id: "me", data: emptyPersonal as never, fields }).run();
+  }
+  revalidatePath("/profile");
+}
+
 /** Run the Part 1 pipeline and upsert jobs into the DB (dashboard button). */
 export async function refreshJobs() {
   await runIngest();

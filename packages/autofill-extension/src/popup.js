@@ -1,7 +1,5 @@
 import {
-  PROFILE_FIELDS,
   loadProfile,
-  saveProfile,
   loadSettings,
   saveSettings,
 } from "./profile.js";
@@ -17,41 +15,26 @@ import {
   getApplicationContext,
   getHubUrl,
   setHubUrl,
+  syncProfileFromHub,
 } from "./jobs.js";
 
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
 
-/* ---------- profile (autofill) ---------- */
-
-// Build the profile inputs from the field spec (keeps HTML and JS in sync).
-const container = $("profileFields");
-for (const f of PROFILE_FIELDS) {
-  const label = document.createElement("label");
-  label.textContent = f.label;
-  const input =
-    f.type === "textarea"
-      ? document.createElement("textarea")
-      : document.createElement("input");
-  if (f.type && f.type !== "textarea") input.type = f.type;
-  input.id = f.key;
-  container.append(label, input);
-}
-
-const readForm = () =>
-  Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, $(f.key).value.trim()]));
-const writeForm = (p) =>
-  PROFILE_FIELDS.forEach((f) => ($(f.key).value = p[f.key] ?? ""));
+/* ---------- profile (autofill) — personal info comes from the Hub ---------- */
 
 async function autofill(submit) {
-  await saveProfile(readForm());
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) {
     statusEl.textContent = "No active tab.";
     return;
   }
-  const profile = readForm();
+  const profile = await loadProfile(); // synced from the Hub
   const { learned = {} } = await chrome.storage.local.get("learned");
+  if (Object.values(profile).filter(Boolean).length === 0) {
+    statusEl.textContent = "No personal info yet — click “Sync personal info from Hub”.";
+    return;
+  }
   try {
     // Inject the filler into every frame (idempotent), then call it. Using
     // scripting.executeScript avoids "receiving end doesn't exist" errors from
@@ -66,19 +49,44 @@ async function autofill(submit) {
       func: (p, l, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, l, s) : { filled: 0 }),
     });
     const filled = results.reduce((n, r) => n + (r.result?.filled || 0), 0);
+    const unknown = results.reduce((n, r) => n + (r.result?.unknown || 0), 0);
     const submitted = results.some((r) => r.result?.submitted);
-    statusEl.textContent = `Filled ${filled} field(s)${submitted ? ", submitted" : ""}.`;
+    statusEl.textContent =
+      `Filled ${filled} field(s)${submitted ? ", submitted" : ""}` +
+      `${unknown ? `. ${unknown} field(s) highlighted for you to fill (they'll be learned).` : "."}`;
   } catch {
     statusEl.textContent = "Can't run on this page (a chrome:// page, PDF, or the web store).";
   }
 }
 
-$("save").addEventListener("click", async () => {
-  await saveProfile(readForm());
-  statusEl.textContent = "Saved.";
-});
 $("fill").addEventListener("click", () => autofill(false));
 $("fillSubmit").addEventListener("click", () => autofill(true));
+
+async function showProfileInfo() {
+  const profile = await loadProfile();
+  const n = Object.values(profile).filter(Boolean).length;
+  $("profileInfo").textContent = n
+    ? `${n} personal field(s) synced from the Hub.`
+    : "No personal info synced yet — click “Sync personal info from Hub”.";
+}
+
+$("syncProfile").addEventListener("click", async () => {
+  statusEl.textContent = "Syncing personal info…";
+  try {
+    const { fieldCount, learnedCount } = await syncProfileFromHub();
+    await showProfileInfo();
+    await showLearnedCount();
+    statusEl.textContent = `Synced ${fieldCount} field(s) and ${learnedCount} learned answer(s) from Hub.`;
+  } catch (err) {
+    statusEl.textContent = `Sync failed: ${err.message}`;
+  }
+});
+
+$("editProfile").addEventListener("click", async (e) => {
+  e.preventDefault();
+  const base = await getHubUrl();
+  chrome.tabs.create({ url: `${base}/profile` });
+});
 
 // Settings toggles (preserve the other setting when saving one).
 async function updateSetting(patch) {
@@ -385,10 +393,10 @@ $("fillClaude").addEventListener("click", async () => {
 /* ---------- init ---------- */
 
 (async () => {
-  writeForm(await loadProfile());
   const s = await loadSettings();
   $("autofillOnOpen").checked = s.autofillOnOpen;
   $("learnToggle").checked = s.learningEnabled;
+  await showProfileInfo();
   await showLearnedCount();
   $("hubUrl").value = await getHubUrl();
   jobs = await loadJobs();

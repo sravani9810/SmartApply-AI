@@ -19,6 +19,39 @@ export async function setHubUrl(url) {
   await chrome.storage.local.set({ [HUB_KEY]: url });
 }
 
+/**
+ * Pull the applicant's personal info from the hub (the source of truth) and
+ * cache it where the filler reads it: profile fields in storage.sync.profile,
+ * learned answers in storage.local.learned.
+ */
+export async function syncProfileFromHub() {
+  const base = await getHubUrl();
+  const res = await fetch(`${base}/api/profile`);
+  if (!res.ok) throw new Error(`Hub returned ${res.status} (is it running at ${base}?)`);
+  const { fields = {}, learned = {} } = await res.json();
+  await chrome.storage.sync.set({ profile: fields });
+  await chrome.storage.local.set({ learned });
+  return {
+    fieldCount: Object.values(fields).filter(Boolean).length,
+    learnedCount: Object.keys(learned).length,
+  };
+}
+
+/** Push a learned answer back to the hub (best-effort). */
+export async function postLearned(label, value) {
+  const base = await getHubUrl();
+  try {
+    await fetch(`${base}/api/learned`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label, value }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Pull jobs live from the hub (replaces the manual jobs-export.json load). */
 export async function syncFromHub() {
   const base = await getHubUrl();
