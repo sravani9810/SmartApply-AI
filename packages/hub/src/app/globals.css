@@ -130,6 +130,13 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .composer-out { border-top: 1px solid var(--border); padding-top: 16px; }
 .err { color: #f0a3a3; font-size: 13px; }
 
+/* follow-up refinement loop */
+.followup { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 12px 0 16px; }
+.fu-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.fu-row { display: flex; gap: 8px; margin-top: 8px; }
+.fu-log { margin: 12px 0 0; padding-left: 22px; color: var(--muted); font-size: 12px; }
+.fu-log li { margin: 2px 0; line-height: 1.4; }
+
 /* résumé library */
 .reslib { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
 .rescard { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }

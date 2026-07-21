@@ -22,13 +22,32 @@ export function Composer({
   const [flavorId, setFlavorId] = useState(initial?.flavorId ?? "");
   const [targetRole, setTargetRole] = useState(initial?.targetRole ?? "");
   const [result, setResult] = useState<ComposeResult | null>(null);
+  const [followup, setFollowup] = useState("");
   const [pending, startTransition] = useTransition();
 
+  // Fresh generate → new library entry.
   const generate = () =>
     startTransition(async () => {
       const r = await composeResumeAction({ jd, instructions, flavorId, targetRole });
       setResult(r);
     });
+
+  // Follow-up → refine the same résumé in place, carrying its current state.
+  const refine = () =>
+    startTransition(async () => {
+      if (!result?.ok || !result.resumeId || !followup.trim()) return;
+      const r = await composeResumeAction({
+        jd, flavorId, targetRole,
+        instructions: followup,
+        resumeId: result.resumeId,
+        current: result.state,
+        priorInstructions: result.instructionsLog ?? [],
+      });
+      if (r.ok) setFollowup("");
+      setResult(r);
+    });
+
+  const log = result?.instructionsLog ?? [];
 
   return (
     <div className="composer">
@@ -69,7 +88,7 @@ export function Composer({
         </div>
 
         <button className="btn on" onClick={generate} disabled={pending || (!jd.trim() && !instructions.trim())}>
-          {pending ? "Composing with Claude…" : "✦ Generate résumé"}
+          {pending && !followup ? "Composing with Claude…" : "✦ Generate résumé"}
         </button>
         {result && !result.ok ? <p className="err">⚠ {result.error}</p> : null}
       </div>
@@ -94,7 +113,29 @@ export function Composer({
               {result.meta.technologies.map((t) => <span className="pill t" key={t}>{t}</span>)}
             </div>
           ) : null}
-          <p className="muted" style={{ fontSize: 12 }}>Saved to your résumé library. Adjust the instructions and generate again to iterate.</p>
+
+          {/* Follow-up loop: keep refining this same résumé. */}
+          <div className="followup">
+            <span className="fu-label">Refine this résumé — keep asking for changes</span>
+            <div className="fu-row">
+              <input
+                className="status" style={{ flex: 1 }} value={followup}
+                onChange={(e) => setFollowup(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") refine(); }}
+                placeholder="e.g. make it shorter, add Docker, move Oracle to the top, drop the Capgemini role"
+                disabled={pending}
+              />
+              <button className="btn on" onClick={refine} disabled={pending || !followup.trim()}>
+                {pending && followup ? "Refining…" : "Apply"}
+              </button>
+            </div>
+            {log.length ? (
+              <ol className="fu-log">
+                {log.map((line, i) => <li key={i}>{line}</li>)}
+              </ol>
+            ) : null}
+          </div>
+
           <ResumePreview data={result.data} />
         </div>
       ) : null}

@@ -7,6 +7,7 @@ import * as s from "./schema";
 import { autoTag } from "../lib/tags";
 import { runIngest } from "../lib/ingest";
 import { isJobStatus } from "../lib/status";
+import type { ComposeState } from "../lib/compose";
 
 /** Set a job's status and mirror it onto its application (shared by row + bulk). */
 function applyStatusToJob(jobId: string, status: string) {
@@ -44,43 +45,77 @@ export interface ComposeResult {
   usedClaude?: boolean;
   meta?: { company: string; domain: string; technologies: string[]; targetRole: string };
   data?: import("@smartapply/shared").ResumeData;
+  /** Carry back into the next follow-up to keep refining this résumé. */
+  state?: ComposeState;
+  /** All instructions applied so far, oldest first. */
+  instructionsLog?: string[];
 }
 
 /**
  * Compose a résumé from a pasted JD + free-form edit instructions (the prompt
- * engine), save it to the résumé library, and return it for live preview.
+ * engine), or REFINE an existing one when `resumeId` + `current` state are
+ * given. Saves/updates the résumé library entry and returns it for live preview.
  */
 export async function composeResumeAction(input: {
   jd?: string; instructions?: string; flavorId?: string; targetRole?: string;
+  /** Present when refining: the row to update in place. */
+  resumeId?: string;
+  /** Present when refining: the current résumé state to build on. */
+  current?: ComposeState;
+  /** Instructions applied in earlier turns (for context + logging). */
+  priorInstructions?: string[];
 }): Promise<ComposeResult> {
   try {
     const { composeResume } = await import("../lib/compose");
-    const { resumeData, meta, usedClaude } = await composeResume({
+    const instruction = input.instructions?.trim() || undefined;
+    const prior = (input.priorInstructions ?? []).filter(Boolean);
+    const { resumeData, meta, usedClaude, state } = await composeResume({
       jd: input.jd?.trim() || undefined,
-      instructions: input.instructions?.trim() || undefined,
+      instructions: instruction,
       flavorId: input.flavorId || undefined,
       targetRole: input.targetRole?.trim() || undefined,
+      current: input.current,
+      priorInstructions: prior,
     });
 
+    const log = instruction ? [...prior, instruction] : prior;
     const label = [meta.company || meta.domain || "Résumé", meta.targetRole]
       .filter(Boolean).join(" — ");
-    const id = crypto.randomUUID();
-    db.insert(s.resumes).values({
-      id,
-      flavorId: input.flavorId || null,
-      resumeData,
-      label,
-      jd: input.jd?.trim() || null,
-      instructions: input.instructions?.trim() || null,
-      company: meta.company || null,
-      domain: meta.domain || null,
-      technologies: meta.technologies,
-      targetRole: meta.targetRole || null,
-      usedClaude,
-    }).run();
+
+    let id = input.resumeId;
+    if (id) {
+      // Refine in place: coalesce metadata so a targeted edit doesn't wipe fields.
+      const existing = db.select().from(s.resumes).where(eq(s.resumes.id, id)).get();
+      db.update(s.resumes).set({
+        resumeData,
+        label: label || existing?.label || "Résumé",
+        instructions: log.join("\n") || existing?.instructions || null,
+        company: meta.company || existing?.company || null,
+        domain: meta.domain || existing?.domain || null,
+        technologies: meta.technologies.length ? meta.technologies : (existing?.technologies ?? null),
+        targetRole: meta.targetRole || existing?.targetRole || null,
+        usedClaude,
+      }).where(eq(s.resumes.id, id)).run();
+      revalidatePath(`/resumes/${id}`);
+    } else {
+      id = crypto.randomUUID();
+      db.insert(s.resumes).values({
+        id,
+        flavorId: input.flavorId || null,
+        resumeData,
+        label,
+        jd: input.jd?.trim() || null,
+        instructions: log.join("\n") || null,
+        company: meta.company || null,
+        domain: meta.domain || null,
+        technologies: meta.technologies,
+        targetRole: meta.targetRole || null,
+        usedClaude,
+      }).run();
+    }
 
     revalidatePath("/resumes");
-    return { ok: true, resumeId: id, usedClaude, meta, data: resumeData };
+    return { ok: true, resumeId: id, usedClaude, meta, data: resumeData, state, instructionsLog: log };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

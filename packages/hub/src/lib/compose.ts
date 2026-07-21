@@ -15,6 +15,17 @@ export interface ComposeInput {
   flavorId?: string;
   /** Optional explicit target role framing ("internship", "senior backend"). */
   targetRole?: string;
+  /** When refining an already-composed résumé, its current state to build on. */
+  current?: ComposeState;
+  /** Instructions already applied in earlier turns, for context on a follow-up. */
+  priorInstructions?: string[];
+}
+
+/** The mutable pieces of a composed résumé, carried between follow-up turns. */
+export interface ComposeState {
+  selection: Record<string, string[]>;
+  skills: string[];
+  summary: string[];
 }
 
 export interface ComposeMeta {
@@ -28,6 +39,8 @@ export interface ComposeOutcome {
   resumeData: ResumeData;
   meta: ComposeMeta;
   usedClaude: boolean;
+  /** Carry this back into the next follow-up as `input.current`. */
+  state: ComposeState;
 }
 
 interface CandidateExp {
@@ -85,22 +98,38 @@ function buildPrompt(input: ComposeInput, cands: CandidateExp[], skills: string[
     return `  Experience ${e.experienceId} — ${e.title} @ ${e.company} (${e.kind}):\n${lines}`;
   }).join("\n\n");
 
-  return `You are composing a tailored résumé for a candidate by (1) SELECTING and ORDERING \
+  const refining = !!input.current;
+  const currentSel = input.current?.selection ?? {};
+  const currentSelBlock = Object.entries(currentSel)
+    .map(([expId, ids]) => `  ${expId}: [${ids.join(", ")}]`).join("\n") || "  (none)";
+  const priorBlock = (input.priorInstructions ?? []).filter(Boolean).map((p, i) => `  ${i + 1}. ${p}`).join("\n");
+
+  const intro = refining
+    ? `You are REFINING an already-composed résumé for a candidate. Below is the résumé's \
+CURRENT state (its selected bullets, skills, and summary). Apply ONLY the NEW INSTRUCTION, \
+changing what it asks and keeping everything else as-is. You must NOT invent, rewrite, or \
+fabricate work experience — bullets may ONLY be chosen from the candidate ids below \
+(you may add back or reorder any of them). Skills and the summary may be edited freely.`
+    : `You are composing a tailored résumé for a candidate by (1) SELECTING and ORDERING \
 the candidate's own already-written, approved bullet points, and (2) applying the \
 candidate's explicit edit instructions to the skills list and summary. You must NOT \
 invent, rewrite, or fabricate work experience — bullets may ONLY be chosen from the \
 candidate ids below. Skills and the summary may be edited freely because the candidate \
-is directing their own résumé.
+is directing their own résumé.`;
+
+  return `${intro}
 
 ${input.jd ? `JOB DESCRIPTION:\n${input.jd.slice(0, 8000)}\n` : "JOB DESCRIPTION: (none provided)\n"}
-${input.targetRole ? `TARGET ROLE: ${input.targetRole}\n` : ""}
-EDIT INSTRUCTIONS FROM THE CANDIDATE:
+${input.targetRole ? `TARGET ROLE: ${input.targetRole}\n` : ""}${
+    refining && priorBlock ? `\nINSTRUCTIONS ALREADY APPLIED IN EARLIER TURNS (do not redo — for context only):\n${priorBlock}\n` : ""
+  }${refining ? `\nCURRENTLY SELECTED BULLETS (experienceId: [bulletIds] — this is what the résumé has now):\n${currentSelBlock}\n` : ""}
+${refining ? "NEW INSTRUCTION TO APPLY NOW" : "EDIT INSTRUCTIONS FROM THE CANDIDATE"}:
 ${(input.instructions ?? "").slice(0, 2000) || "(none — just tailor to the JD)"}
 
-CURRENT SKILLS (edit per the instructions — add/remove/reorder as asked):
+CURRENT SKILLS (edit per the instruction — add/remove/reorder as asked, else keep):
 ${skills.join(", ") || "(none)"}
 
-CURRENT SUMMARY PARAGRAPHS (reframe per the target role/instructions):
+CURRENT SUMMARY PARAGRAPHS (reframe only if the instruction asks, else keep):
 ${summary.map((p, i) => `  ${i + 1}. ${p}`).join("\n") || "(none)"}
 
 CANDIDATE BULLETS (choose only from these ids):
@@ -231,15 +260,23 @@ function deterministic(input: ComposeInput, cands: CandidateExp[], skills: strin
     .map((e) => e.experienceId);
   const dropSet = new Set(dropExperienceIds);
 
+  const currentSel = input.current?.selection;
   const selection: Record<string, string[]> = {};
   for (const e of cands) {
     if (dropSet.has(e.experienceId)) continue;
-    let pool = e.bullets;
-    if (flavorSel) {
-      const preferred = pool.filter((b) => flavorSel.has(b.bulletId));
-      if (preferred.length) pool = preferred;
+    let ids: string[];
+    if (currentSel) {
+      // Refining: keep the current selection for this experience as-is.
+      const validForExp = new Set(e.bullets.map((b) => b.bulletId));
+      ids = (currentSel[e.experienceId] ?? []).filter((id) => validForExp.has(id));
+    } else {
+      let pool = e.bullets;
+      if (flavorSel) {
+        const preferred = pool.filter((b) => flavorSel.has(b.bulletId));
+        if (preferred.length) pool = preferred;
+      }
+      ids = pool.slice(0, FALLBACK_PER_EXPERIENCE).map((b) => b.bulletId);
     }
-    const ids = pool.slice(0, FALLBACK_PER_EXPERIENCE).map((b) => b.bulletId);
     if (ids.length) selection[e.experienceId] = ids;
   }
 
@@ -271,8 +308,9 @@ function deterministic(input: ComposeInput, cands: CandidateExp[], skills: strin
  */
 export async function composeResume(input: ComposeInput): Promise<ComposeOutcome> {
   const cands = candidates();
-  const skills = currentSkills();
-  const summary = currentSummary();
+  // When refining, build on the résumé's current state; otherwise start from the library.
+  const skills = input.current?.skills ?? currentSkills();
+  const summary = input.current?.summary ?? currentSummary();
 
   const plan = await planWithClaude(input, cands, skills, summary);
   const usedClaude = plan !== null;
@@ -296,7 +334,12 @@ export async function composeResume(input: ComposeInput): Promise<ComposeOutcome
     projects: (base.projects ?? []).filter((e) => keep(e.company)),
   };
 
-  return { resumeData, meta: p.meta, usedClaude };
+  return {
+    resumeData,
+    meta: p.meta,
+    usedClaude,
+    state: { selection: p.selection, skills: p.skills, summary: p.summary },
+  };
 }
 
 /** Pack skill tokens into pipe-joined lines when Claude returns a flat token list. */
