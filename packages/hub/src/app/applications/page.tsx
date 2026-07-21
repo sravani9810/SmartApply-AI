@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getApplications } from "../../db/queries";
 
 export const dynamic = "force-dynamic";
@@ -17,15 +18,17 @@ export default function ApplicationsPage() {
         ) : (
           <table>
             <thead>
-              <tr><th>Job</th><th>Company</th><th>Status</th><th>Applied</th></tr>
+              <tr><th>Job</th><th>Company</th><th>Fit</th><th>Tailored by</th><th>Status</th><th>Résumé</th></tr>
             </thead>
             <tbody>
               {apps.map((a) => (
                 <tr key={a.id}>
-                  <td>{a.jobTitle ?? "—"}</td>
+                  <td><Link href={`/jobs/${a.jobId}`}>{a.jobTitle ?? "—"}</Link></td>
                   <td>{a.jobCompany ?? "—"}</td>
+                  <td>{a.match ? `${Math.round((a.match.fitScore ?? 0) * 100)}%` : "—"}</td>
+                  <td><span className="pill">{a.usedClaude ? "Claude" : a.match ? "tag-based" : "—"}</span></td>
                   <td><span className="pill">{a.status}</span></td>
-                  <td className="muted">{a.appliedAt ?? "—"}</td>
+                  <td>{a.resumeId ? <Link href={`/resumes/${a.resumeId}`}>view →</Link> : "—"}</td>
                 </tr>
               ))}
             </tbody>

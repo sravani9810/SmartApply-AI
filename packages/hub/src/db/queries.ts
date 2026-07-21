@@ -118,11 +118,25 @@ export function getFlavorFit(jobTags: string[]) {
     .sort((a, b) => b.overlap - a.overlap);
 }
 
+export function getTailoringForJob(jobId: string) {
+  return db.select().from(s.applications).where(eq(s.applications.jobId, jobId)).get();
+}
+
+export function getResume(id: string) {
+  const r = db.select().from(s.resumes).where(eq(s.resumes.id, id)).get();
+  if (!r) return null;
+  return { ...r, data: r.resumeData as import("@smartapply/shared").ResumeData };
+}
+
 export function getApplications() {
   return db.select({
     id: s.applications.id,
     status: s.applications.status,
     appliedAt: s.applications.appliedAt,
+    resumeId: s.applications.resumeId,
+    match: s.applications.match,
+    usedClaude: s.applications.usedClaude,
+    jobId: s.applications.jobId,
     jobTitle: s.jobs.title,
     jobCompany: s.jobs.company,
   }).from(s.applications)

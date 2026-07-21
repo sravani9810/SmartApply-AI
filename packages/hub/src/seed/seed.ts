@@ -176,6 +176,9 @@ async function main() {
       start: e.start, end: e.end, url: e.url, description: e.description, ord: i,
     }).run());
 
+  db.insert(s.profile).values({ id: "me", data: resume.personal })
+    .onConflictDoUpdate({ target: s.profile.id, set: { data: resume.personal } }).run();
+
   seedFlavors(tagIds);
   const flavorCount = db.select().from(s.flavors).all().length;
   const fbCount = db.select().from(s.flavorBullets).all().length;

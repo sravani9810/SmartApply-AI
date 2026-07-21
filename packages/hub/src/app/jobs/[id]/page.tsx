@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getJob, getJobTagNames, getFlavorFit } from "../../../db/queries";
-import { analyzeJob, setJobStatus } from "../../../db/actions";
+import { getJob, getJobTagNames, getFlavorFit, getFlavors, getTailoringForJob } from "../../../db/queries";
+import { analyzeJob, setJobStatus, tailorJob } from "../../../db/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,9 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
 
   const jobTags = getJobTagNames(id);
   const fit = getFlavorFit(jobTags);
+  const flavors = getFlavors();
+  const tailoring = getTailoringForJob(id);
+  const match = tailoring?.match;
 
   return (
     <main className="wrap">
@@ -50,6 +53,47 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           <div className="f" key={f.name}>{f.name} <b>{f.overlap}</b></div>
         ))}
       </div>
+
+      <h2>Tailor résumé</h2>
+      <p className="sub" style={{ marginTop: -6 }}>
+        Claude selects &amp; orders your approved bullets for this JD (on your subscription;
+        falls back to tag ranking if not signed in). It never fabricates experience.
+      </p>
+      <form action={tailorJob.bind(null, id)} className="row">
+        <select className="status" name="flavorId" defaultValue={tailoring?.resumeId ? undefined : flavors[0]?.id}>
+          {flavors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+        <button className="btn" type="submit">Tailor →</button>
+      </form>
+
+      {match ? (
+        <div className="panel" style={{ marginTop: 14, padding: "14px 18px" }}>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <div>
+              <span className="fitscore">{Math.round((match.fitScore ?? 0) * 100)}%</span>
+              <span className="muted" style={{ marginLeft: 8 }}>fit</span>
+              <span className="pill" style={{ marginLeft: 12 }}>
+                {tailoring?.usedClaude ? "Claude" : "tag-based fallback"}
+              </span>
+            </div>
+            {tailoring?.resumeId ? (
+              <Link href={`/resumes/${tailoring.resumeId}`}>view tailored résumé →</Link>
+            ) : null}
+          </div>
+          {match.summary ? <p style={{ lineHeight: 1.5 }}>{match.summary}</p> : null}
+          <div className="meta">
+            {match.matchedSkills?.map((t) => <span className="pill t" key={"m" + t}>{t}</span>)}
+          </div>
+          {match.missingSkills?.length ? (
+            <>
+              <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>Missing / not evidenced:</div>
+              <div className="meta">
+                {match.missingSkills.map((t) => <span className="pill miss" key={"x" + t}>{t}</span>)}
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       <h2>Description</h2>
       {job.description ? (

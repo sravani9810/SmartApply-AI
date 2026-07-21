@@ -7,6 +7,7 @@ import {
   primaryKey,
   index,
 } from "drizzle-orm/sqlite-core";
+import type { PersonalData, MatchResult } from "@smartapply/shared";
 
 /**
  * SmartApply Hub schema (Part 0).
@@ -228,6 +229,10 @@ export const applications = sqliteTable(
       .references(() => jobs.id, { onDelete: "cascade" }),
     resumeId: text("resume_id").references(() => resumes.id, { onDelete: "set null" }),
     status: text("status").notNull().default("new"),
+    /** Last tailoring result (fit score, matched/missing skills, rationale). */
+    match: text("match", { mode: "json" }).$type<MatchResult>(),
+    /** Whether the last tailoring used Claude (vs the deterministic fallback). */
+    usedClaude: integer("used_claude", { mode: "boolean" }),
     appliedAt: text("applied_at"),
     createdAt: text("created_at").notNull().default(now),
   },
@@ -253,4 +258,10 @@ export const learnedAnswers = sqliteTable("learned_answers", {
   label: text("label").primaryKey(),
   value: text("value").notNull(),
   updatedAt: text("updated_at").notNull().default(now),
+});
+
+/** Singleton applicant profile — the résumé header (name, email, links). */
+export const profile = sqliteTable("profile", {
+  id: text("id").primaryKey(), // always "me"
+  data: text("data", { mode: "json" }).$type<PersonalData>().notNull(),
 });

@@ -13,6 +13,17 @@ export async function refreshJobs() {
   revalidatePath("/");
 }
 
+/** Tailor a résumé for a job with the chosen flavor (Claude on subscription). */
+export async function tailorJob(jobId: string, formData: FormData) {
+  const flavorId = String(formData.get("flavorId") ?? "");
+  if (!flavorId) return;
+  const { tailorForJob } = await import("../lib/tailor");
+  await tailorForJob(jobId, flavorId);
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath("/applications");
+  revalidatePath("/");
+}
+
 /** Edit a bullet's primary phrasing. */
 export async function editBulletText(bulletId: string, formData: FormData) {
   const text = String(formData.get("text") ?? "").trim();
