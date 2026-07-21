@@ -1,290 +1,246 @@
 import { ResumeData } from "../types/cv_types";
 
 export const data: ResumeData = {
-	"personal": {
-		"name": "Revanth Madasu",
-		"website": {
-			"readable": "revanth-madasu913.appspot.com",
-			"link": "https://revanth-madasu913.appspot.com"
-		},
-		"email": "revanthmadasu913@gmail.com",
-		"github": {
-			"readable": "github.com/revanthmadasu",
-			"link": "https://github.com/revanthmadasu"
-		},
-		"linkedin": {
-			"readable": "linkedin.com/in/revanth-madasu-465396107",
-			"link": "https://www.linkedin.com/in/revanth-madasu-465396107/"
-		},
-		"skillset": [
-			{
-				"type": "programming",
-				"label": "Programming",
-				"skills": [
-					{
-						"skill": "Javascript",
-						"level": "10"
-					},
-					{
-						"skill": "Typescript",
-						"level": "10"
-					},
-					{
-						"skill": "Python",
-						"level": "9"
-					},
-					{
-						"skill": "Java",
-						"level": "8"
-					},
-					{
-						"skill": "PHP",
-						"level": "6"
-					},
-					{
-						"skill": "C#",
-						"level": "6",
-						"optional": true
-					}
-				]
-			},
-			{
-				"type": "web-frameworks",
-				"label": "Web",
-				"skills": [
-					{
-						"skill": "React",
-						"level": "10"
-					},
-					{
-						"skill": "Angular",
-						"level": "10"
-					},
-					{
-						"skill": "Redux",
-						"level": "10"
-					},
-					{
-						"skill": "HTML",
-						"level": "10"
-					},
-					{
-						"skill": "CSS",
-						"level": "10"
-					},
-					{
-						"skill": "Ngrx",
-						"level": "8"
-					},
-					{
-						"skill": "Cypress",
-						"level": "8"
-					},
-					{
-						"skill": "Jasmine",
-						"level": "8"
-					},
-					{
-						"skill": "Next",
-						"level": "8"
-					},
-					{
-						"skill": "Flask",
-						"level": "8"
-					},
-					{
-						"skill": "Node.js",
-						"level": "8"
-					},
-					{
-						"skill": "Express.js",
-						"level": "8"
-					},
-					{
-						"skill": "Bootstrap",
-						"level": "8"
-					},
-					{
-						"skill": ".net",
-						"level": "7",
-						"optional": true
-					},
-					{
-						"skill": "Webpack",
-						"level": "7"
-					}
-				]
-			},
-			{
-				"type": "Data, Platform & Other",
-				"label": "Data, Platform & Other",
-				"skills": [
-					{
-						"skill": "SQL",
-						"level": "9"
-					},
-					{
-						"skill": "MySQL",
-						"level": "9"
-					},
-					{
-						"skill": "New Relic",
-						"level": "9"
-					},
-					{
-						"skill": "Firebase",
-						"level": "8"
-					},
-					{
-						"skill": "MongoDB",
-						"level": "7"
-					},
-					{
-						"skill": "GCP",
-						"level": "7"
-					},
-					{
-						"skill": "AWS",
-						"level": "7"
-					},
-					{
-						"skill": "Android Studio",
-						"level": "7"
-					},
-					{
-						"skill": "Snowflake",
-						"level": "6",
-						"optional": true
-					}
-				]
-			}
-		]
-	},
-	"work_experience": [
-		{
-			"company": "Swiggy",
-			"position": "Software Developer",
-			"url": "https://www.swiggy.com/",
-			"location": "Bengaluru",
-			"start": "February 2022",
-			"end": "December 2022",
-			"description": [
-				"Work in frontend development for Swiggy (consumer app) which has <b>10 Million+</b> downloads and millions of users, desktop, mobile, app platforms using <b>Javascript, Typescript, React.js, Redux, HTML5, NextJS, NodeJS, Express, Webpack, Storybook, Jest, Cypress, Jenkins, New Relic, Pagerduty, npm.</b>",
-				"Successfully built independent web-views in <b>NextJS</b> that can be embedded in Swiggy mobile applications or independently hosted.",
-				"Excelled as the <b>Release Manager</b>, orchestrating collaboration between QA, product and dev teams. Skillfully handled release content, deployment, and closely monitored production behavior during critical releases.",
-				"Proved operational excellence by actively responding to critical production issues and troubleshooting as an <b>On-Call dev</b>. Proficiently monitored performance metrics, assessed node health, crafted insightful queries in <b>New Relic</b> for debugging production errors, and generated performance reports and charts. Adeptly conducted root cause analysis for <b>Pagerduty</b> alerts.",
-				"Collaborated closely with user experience, product managers on UX review designs that significantly impact thousands of users.",
-				"Independently built spotlight project for friendship day event activity called <b>Roast Your Dost</b> which garnered over 1 million users and secured <b>4th rank in Best Friendship Day Campaigns</b> by Mad Over Marketing",
-				"Independently build multiple core features of applications with best practices, design patterns, system design, architecture design, test-driven development - automated tests using cypress, jest, API design, Agile software development.",
-				"Implemented efficient CI/CD workflows in Jenkins, Github Actions to get reports of package sizes, Lighthouse metrics, test coverage on the PRs."
-			]
-		},
-		{
-			"company": "Thomson Reuters",
-			"position": "Software Developer",
-			"url": "https://www.thomsonreuters.com/",
-			"location": "Bengaluru",
-			"start": "October 2021",
-			"end": "February 2022",
-			"description": [
-				"Work in <b>full stack</b> application development of legal applications, implementing designs from product managers, integrating back-end web services, restful services, bug fixes, unit testing, e2e test cases, code reviews, agile development etc.",
-				"Independently developed Assembled Renditions feature.",
-				"Implemented filter functionality to tables which brought search functionality to multiple pages",
-				"Increased unit testing code coverage from <b>54% to 87%</b> of a large module containing 12+ pages",
-				"<b>Technologies</b>: Angular, Typescript, Javascript, Cypress, Python, AWS, Version Control."
-			]
-		},
-		{
-			"company": "Colortokens",
-			"position": "Member of Technical Staff",
-			"url": "https://colortokens.com/",
-			"location": "Bengaluru",
-			"start": "August 2019",
-			"end": "October 2021",
-			"description": [
-				"Work in <b>full-stack (frontend focussed)</b> development of new applications on a SaaS-based platform from scratch, new features, and maintenance of the existing scalable web application with utmost quality.",
-				"Developing reusable components in the micro-frontend architecture using <b>Angular, React, UI Development, API Integration, responsive design, Unit testing </b>, maintaining and improving existing codebases, and code reviews.",
-				"Worked as a sole developer on a <b>.NET, C# and Angular</b> project by addressing issues with existing customers, making requested changes, features development etc.",
-				"Handled deployments using <b>Docker, Kubernetes, CI/CD pipelines, Jenkins.</b>",
-				"<b>Led</b> UI development teams effectively with planning, architecture, API design, work assignment, coordinating with UX teams.",
-				"<b>Production support</b> responsibilities which include responsibilities like prod bug fixes, resolving system outages and primary POC.",
-				"Proven proficiency in implementing scrum, agile methodologies and adhering to the software development life cycle (SDLC) best practices, ensuring efficient project management, timely delivery, and high-quality software solutions.",
-				"Worked on <b>customer critical projects</b> which need special use case implementation in strict deadlines improving <b>customer experience</b>.",
-				"Architected and Implemented role-based access control (RBAC) from the UI side. Different workflows for different types of users like security admin, policy admin, asset admin, view only.",
-				"<b>Technologies:</b> Angular, React, .NET, Typescript, Javascript, CSS3, Ajax, XML, Python, Cloud Technologies (Azure, AWS), GraphQL, D3, Webpack, Jasmine, HTML, Bootstrap, SCSS, Jenkins, Jira, JSON, Continuous Integration."
-			]
-		}
-	],
-	"education": [
-		{
-			"degree": "Masters in Computer and Information Science",
-			"university": "Southern Arkansas University",
-			"url": "https://web.saumag.edu/",
-			"location": "Magnolia",
-			"start": "January 2023",
-			"end": "May 2024",
-			"description": [
-				"Relevant coursework: Data Analysis and Mining, Data Structures, Data visualization, Databases, Computer Networks, Web Development, Software Engineering, Algorithms."
-			]
-		},
-		{
-			"degree": "Bachelor of Technology in Information Technology",
-			"university": "Jawaharlal Nehru Technological University",
-			"url": "https://jntuh.ac.in/",
-			"location": "Hyderabad",
-			"start": "July 2015",
-			"end": "April 2019",
-			"description": [
-				"Developed an advanced Instant Messaging application named aChat.",
-				"Graduated with 8.59 CGPA",
-				"Led \"IT coding club\" and conducted several events"
-			]
-		}
-	]
-}
+  personal: {
+    name: "Revanth Madasu",
+    phone: "+1 816-859-2752",
+    email: "revanthmadasu913@gmail.com",
+    website: {
+      readable: "revanth-madasu913.appspot.com",
+      link: "https://revanth-madasu913.appspot.com",
+    },
+    github: {
+      readable: "github.com/revanthmadasu",
+      link: "https://github.com/revanthmadasu",
+    },
+    linkedin: {
+      readable: "linkedin.com/in/revanth-madasu-465396107",
+      link: "https://www.linkedin.com/in/revanth-madasu-465396107/",
+    },
+    // Fallback categories (used only if `skills` below is removed).
+    skillset: [],
+  },
+
+  skills: [
+    "Java | Terraform | Ansible | JavaScript | TypeScript | Python | Kafka | Kubernetes | React | Redux | Next | Node | Express | CSS | Git",
+    "OCI | AWS | Cloud Computing | CI/CD | Cypress | Jasmine | Unit Testing | Lambda | OOP | NoSQL | LLM | AgenticAi | MCP | SQL | Postgres",
+    "Frontend | Backend | Full-Stack | Microservices | System Design | AI",
+  ],
+
+  summary: [
+    "Software engineer with nearly seven years of experience building large-scale distributed systems, full-stack applications, and cloud infrastructure across OCI, AWS, and Azure. Built and operated mission-critical services with 99.99% availability across approximately 100 global regions, including petabyte-scale ingestion and search platforms, high-throughput microservices, production reliability, and incident response. Experienced across React, Angular, TypeScript, JavaScript, Python, FastAPI, Java, Spring, Kafka, Kubernetes, and Terraform.",
+    "As a founding engineer, independently took an AI-native social-learning SaaS platform from concept to a production-ready pre-launch deployment, owning product strategy, UX, architecture, full-stack development, testing, and AWS infrastructure. Designed prompt-driven, multi-model pipelines on AWS Bedrock to orchestrate content, images, structured layouts, and interactive SVG/Lottie media, including a self-authoring template system that dynamically generates and validates new visual experiences. Built the platform using AI-assisted and agentic development workflows while maintaining a clean, contract-driven architecture and production-grade engineering practices.",
+    "Previously developed high-traffic consumer applications at Swiggy and full-stack SaaS security platforms. Strong background in distributed systems, cloud-native and serverless architecture, microservices, frontend and backend engineering, production operations, and end-to-end product ownership.",
+  ],
+
+  projects: [
+    {
+      position: "Founding Engineer - Pre-launch",
+      company: "Scrollwise.net",
+      url: "https://scrollwise.net",
+      location: "Remote",
+      start: "05/2026",
+      end: "Present",
+      description: [
+        "<b>Engineer-founder</b> building a micro learning <b>genAI</b> platform end-to-end from scratch — single-handedly designing, building, and shipping to production a full-stack AI product spanning a LLM content-generation service, <b>React SPA</b>, a <b>FastAPI</b> backend, and infra in <b>AWS</b>, owning everything from product and UX decisions through architecture, implementation, testing, code review, and infrastructure.",
+        "Achieved rich, high-quality interactive visual content by engineering an prompt driven, AI model based content generation pipeline with <b>multi-model orchestration layer</b> that uses different models on <b>AWS Bedrock</b>, leveraging <b>prompt engineering</b> to generate images, post content, posts structured JSON code, SVG/Lottie media composing all into a single coherent, visually engaging post based on the prompted content.",
+        "Created a <b>self-authoring template engine</b> that identifies when existing layouts are insufficient and generates new designs through a governed, multi-model workflow — combining quality validation, duplicate prevention, intelligent model routing, and approval-based reconciliation. Complemented it with a layered visual-asset pipeline and theme-aware styling to ensure generated illustrations and animations remain consistent with each post's palette and visual identity.",
+        "<b>Architected</b> the frontend feed application from the ground up using <b>React 18</b>, TypeScript, Vite, React Router, and TanStack React Query, building an Instagram-style swipeable multi-level feed, a reusable data-driven SVG/Lottie template renderer, light/dark theming, and protected/admin routes with role-based access control (<b>RBAC</b>).",
+        "Designed and developed backend APIs in Python using <b>FastAPI</b>, Pydantic, and async SQLAlchemy, implementing <b>JWT</b> auth with access/refresh tokens, a personalized feed-ranking service, and progress tracking, with ORM-backed persistence on <b>PostgreSQL</b> and SQLite.",
+        "Owned full serverless deployment on <b>AWS</b>, running <b>FastAPI</b> on <b>Lambda</b>, a React SPA on <b>S3</b> + <b>CloudFront</b>, and event-driven generation on <b>ECS Fargate</b> over a shared <b>RDS PostgreSQL</b> database.",
+        "Architected and operated a <b>multi-surface hosting and domain platform on AWS</b>, securely routing the marketing site, web application, and API through <b>Route 53</b>, <b>CloudFront</b>, and <b>ACM</b>. Migrated authoritative <b>DNS</b> from the registrar to <b>AWS</b> for centralized, programmatic control and configured complete email authentication and deliverability across the domain.",
+        "Built <b>CI/CD</b> pipelines using <b>GitHub Actions</b> with path-filtered independent per-component deploys, <b>Docker</b> multi-arch image builds, and least-privilege <b>IAM</b>, and owned <b>VPC</b> networking, DNS/TLS on <b>Route 53</b>, <b>ACM</b> certificates, and structured logging to <b>CloudWatch</b>.",
+        "Designed distinctive, high-polish UI details from scratch, including a hand-built animated generation indicator and a library of hand-authored Lottie animations, UI template library — pairing product-engineering with a strong visual/creative eye.",
+        "Built the entire product using an <b>AI-assisted</b> / agentic development workflow (Claude code, codex), driving architecture and implementation at high velocity as a solo engineer while keeping a clean, versioned, contract-driven monorepo.",
+        "<b>Skills</b>: AWS Bedrock, Anthropic Claude API, LLM pipelines & multi-model orchestration, prompt engineering, generative SVG/Lottie media, AI-assisted / agentic development · Python, FastAPI, SQLAlchemy, Pydantic, async APIs, JWT, OAuth2/OIDC · React, TypeScript, JavaScript, Vite, TanStack Query, responsive UI/UX · PostgreSQL, database design & migrations · AWS (Lambda, API Gateway, ECS Fargate, RDS, S3, CloudFront, Route 53, IAM), serverless architecture, Docker, GitHub Actions, CI/CD · REST API design, system architecture, end-to-end product development, technical design & decision-making, Git & code review.",
+      ],
+    },
+  ],
+
+  work_experience: [
+    {
+      position: "Software Development Engineer 2",
+      company: "Oracle",
+      url: "https://www.oracle.com/",
+      location: "Austin, USA",
+      start: "08/2024",
+      end: "04/2026",
+      description: [
+        "Software engineer at <b>Oracle Cloud Infrastructure</b>, a <b>tier-1, customer-facing cloud service</b> with <b>99.99% availability SLA</b>, operating continuously across <b>multiple global regions</b> primarily working in Backend and frontend domains with <b>Java</b>, <b>Javascript</b>, <b>Typescript</b>, <b>Angular</b>, <b>Spring Boot</b>, <b>Terraform</b>, <b>Ansible</b>, <b>SQL</b>, <b>REST APIs</b>, <b>Docker</b>, <b>Kafka</b>, <b>OCI services</b> in <b>distributed systems</b> architecture using <b>dockerized microservices</b>.",
+        "Delivered <b>end-to-end features</b> in highly available, high volume, data <b>backend systems</b> including <b>data consuming</b> and <b>indexing applications</b> consuming data from <b>Kafka</b> and <b>Elasticsearch, Lucene</b> for indexing handling Petabytes of data globally, in a distributed microservices architecture working with <b>SQL</b> and <b>NoSQL</b> datasources, <b>cache mechanisms</b>, communicating via <b>kRPCs</b>, <b>REST APIs</b>, developing and working with RESTful services written in <b>Java, Python</b> using <b>RocksDB, Elasticsearch, Lucene, Kafka, Docker, Kubernetes</b> etc.",
+        "Developed user interface modules for logging allowing internal users to search and visualize logs primarily using <b>Angular</b>, <b>Ngrx</b>, <b>Javascript</b>, <b>Typescript</b>, <b>Jasmine</b> in micro-frontend architecture.",
+        "Developed AI assistant for team operations using open source AI LLM models - <b>OLLAMA</b> on teams operational runbooks, architecture documents so that it responds with appropriate resolutions for queries during incidents. Worked with different approaches including fine tuning, embeddings, RAG using vector databases, MCP poc projects, agentic ai experiments etc.",
+        "Applied <b>AI-assisted development tools</b> including <b>GitHub Copilot</b> and <b>Claude, OpenAi, Gemini</b> models to accelerate feature development, code refactoring, and debugging, improving developer productivity.",
+        "Developed <b>Infrastructure-as-code</b> using <b>Terraform</b> to provision and manage critical resources like load balancers, compute resources, policies, IAM policies/roles, monitoring alarms, database and object storage resources, application resource pools, etc.",
+        "Experience with <b>horizontal and vertical scaling</b> of <b>distributed systems</b> with data redundancy, supporting increasing traffic and automating infrastructure though <b>Terraform</b>.",
+        "Developed automation for host configuration and deployment using <b>Ansible</b> and <b>shell scripts</b> implementing encryption setup, performing disk and hardware checks to ensure applications start properly.",
+        "Owned end-to-end features delivery by managing testing and <b>deployments</b>, leading the deployments on ~ 100 regions, monitoring application health of applications, and updating <b>infrastructure automation</b> using terraform.",
+        "Authored <b>unit, integration, and canary test suites in Java, JUnit, Mockito</b>, including <b>end-to-end test canary scenarios</b> that run <b>continuously every 10 minutes</b> to validate ingestion, search, and service health across regions.",
+        "Developed <b>grafana</b> dashboards, alarms across multiple components, to quickly determine failures, monitor health of systems.",
+        "Developed operational runbooks, <b>Python automation</b> and <b>shell</b> scripts to identify issues, and do production incident mitigations.",
+        "Primary on-call engineer for <b>24/7 rotations</b>, handling <b>12-hour day/night shifts</b> and resolving <b>200+ Sev-2 incidents</b> for mission-critical services, identifying <b>CPU bottlenecks, disk mount failures, host issues, and load spikes,</b> performing <b>real-time scaling, throttling, and fault isolation</b> to maintain strict SLA guarantees, and coordinated with <b>incident management, and leadership</b> during escalations.",
+        "Provided technical support to external customers, ensuring timely resolution of customer issues.",
+        "Documented <b>technical design</b> and <b>documentations</b>, <b>incident postmortem</b> documentations, <b>root cause analysis</b>, authored <b>postmortems and CAPAs</b>, and coordinated with <b>NOC, incident management, and leadership</b> during escalations.",
+        "Maintained and updated application dependencies by resolving security findings in Java packages, and managing team client libraries through <b>Apache Maven</b> and <b>JFrog Artifactory</b>.",
+        "Implemented <b>heavy query detection</b> and <b>source scan detection</b> to protect the system from expensive searches, improving performance and cost efficiency.",
+        "Executed <b>CPU shape migrations across multiple regions</b>, significantly improving system health and reducing sustained CPU pressure.",
+        "Mentored junior engineers, new joiners, interns and conducted multiple training sessions for system architecture, oncall training, design reviews, PR reviews etc.",
+        "<b>Skills</b>: Java, Javascript, Typescript, Python, Pandas, Spring Boot, Terraform, Ansible, Angular, Redux, Distributed Systems, System design, Cloud engineering, OCI services, SQL, Postgres, Kafka, Lucene, kRPC, REST APIs, Docker, Kubernetes, Linux, shell scripts, Grafana, metrics, RocksDB, Object storage, Load balancing, API gateway.",
+      ],
+    },
+    {
+      position: "Fullstack Software Developer 2",
+      company: "Zachry",
+      url: "https://www.zachrygroup.com/",
+      location: "",
+      start: "05/2023",
+      end: "06/2024",
+      description: [
+        "Full Stack Developer responsible for the design, development and maintenance of enterprise-scale payroll applications for high-profile clients closely working with business analyst teams to deliver technical solutions using <b>Java</b>, <b>Spring</b>, <b>Javascript</b>, <b>Angular</b>, <b>GCP</b>.",
+        "Led the end-to-end development and architecture of a secure payroll rule configuration web application using <b>Angular</b>, <b>TypeScript</b>, AngularMaterial, HTML, Bootstrap, and CSS, independently handling responsive UI/UX design, component development, and application routing.",
+        "Designed and deployed scheduled Azure WebJobs using Java, Spring based APIs to enable automated background processing — such as payroll file generation and data synchronization — by configuring CRON-based triggers and deploying to Azure App Services for an enterprise-grade payroll application supporting weekly payroll processing for approximately 1 million employees.",
+        "Built secure, high-performance services using Java, Spring Boot, Spring Cloud, Hibernate, and JPA, ensuring accurate payroll calculations and rule processing.",
+        "Built dynamic and reactive forms using Angular Reactive Forms, FormBuilder, and RxJS to allow business users to create, validate, and manage payroll rules based on hours, rates, shifts, weekends, and time-off policies.",
+        "Developed a fully functional admin dashboard using Angular services and reusable components, enabling authorized users to manage user roles, access controls, and audit history while maintaining compliance with internal security protocols.",
+        "Designed and consumed RESTful APIs with bearer token authentication, sending out email notification with OAuth2.0 authentication, enabling secure integration with HCM systems and downstream Oracle Time and Labour.",
+        "Developed, tested, and debugged APIs using Postman, and documented endpoints for internal consumption and external client integration.",
+        "Processed and transferred payroll data securely using <b>Azure Blob Storage</b>, <b>Azure SQL Database</b>, and MS SQL Server, with fine-tuned queries and stored procedures.",
+        "Built monitoring dashboards with <b>Azure Monitor</b> and <b>Log Analytics</b>, proactively identifying performance bottlenecks and ensuring 99.9% uptime for payroll cycles.",
+        "Provided on-call production support for enterprise-grade payroll processing systems, ensuring system stability by diagnosing job failures, reprocessing payroll runs, and resolving critical issues under tight SLAs.",
+        "Monitored and supported scheduled jobs using logs and alerts, addressed performance bottlenecks, and responded to client incidents and tickets to maintain operational continuity and high availability during weekly payroll execution windows.",
+        "Implemented automated test suites using JUnit and Mockito, achieving over 85% test coverage and reducing post-deployment defects.",
+        "Participated in sprint planning and Agile ceremonies, coordinating backend work streams with frontend, DevOps, and QA teams for feature delivery and production support.",
+      ],
+    },
+    {
+      position: "Software Development Engineer",
+      company: "Swiggy",
+      url: "https://www.swiggy.com/",
+      location: "Bengaluru, India",
+      start: "02/2022",
+      end: "12/2022",
+      description: [
+        "Work in frontend development for Swiggy (consumer app) which has <b>10 Million+</b> downloads and millions of users, on desktop web, mobile web, app platforms using primarily <b>Javascript</b>, <b>Typescript</b>, <b>React.js</b>, <b>Redux, NextJS, NodeJs</b>, writing high quality code for UI, APIs, E2E test cases, design and code reviews, tech design documentation, product, UX reviews etc.",
+        "Successfully built independent web-views in <b>NextJS, React</b> that can be embedded in Swiggy mobile applications or independently hosted.",
+        "Excelled as the on-call managing the release content, orchestrating collaboration between QA, product and dev teams. Skillfully handled release content, deployment, and closely monitored production behavior during deploying critical releases.",
+        "Proved operational excellence by actively responding to critical production issues and troubleshooting as an <b>On-Call dev</b>. Proficiently monitored performance metrics, assessed node health, crafted insightful queries in <b>New Relic</b> for debugging production errors, and generated performance reports and charts. Adeptly conducted root cause analysis for <b>Pagerduty</b> alerts.",
+        "Collaborated closely with user experience, product managers on UX review designs that significantly impact thousands of users.",
+        "Independently built spotlight project for friendship day event activity called <b>Roast Your Dost</b> which garnered over 1 million users and secured 4th rank in Best Friendship Day Campaigns by Mad Over Marketing.",
+        "Independently build multiple core features of applications with best practices, design patterns, system design, architecture design, test-driven development - automated tests using cypress, jest, APIs design, Agile software development.",
+        "Implemented efficient CI/CD workflows in Jenkins, Github Actions to get reports of package sizes, Lighthouse metrics, test coverage on the PRs.",
+        "<b>Skills</b>: Javascript, Typescript, React.js, Redux, NextJS, AWS, NodeJS, Express, Webpack, Storybook, Jest, Cypress, Jenkins, New Relic, Pagerduty, npm.",
+      ],
+    },
+    {
+      position: "Software Development Engineer",
+      company: "Thomson Reuters",
+      url: "https://www.thomsonreuters.com/",
+      location: "Bengaluru, India",
+      start: "10/2021",
+      end: "02/2022",
+      description: [
+        "Work in <b>full stack</b> application development of legal applications, implementing designs from product managers, integrating back-end web services, restful services, bug fixes, unit testing, e2e test cases, code reviews, agile development primarily using <b>Javascript</b>, <b>Typescript</b>, <b>Angular</b>, <b>Python</b>, <b>AWS</b> etc.",
+        "Created state management layer in UI application which manages the local state using <b>Ngrx</b>, which eliminated frequent API calls and faster UI rendering.",
+        "Developed Assembled Renditions feature end to end with UI and led deployment in <b>Azure</b> environment.",
+        "Improved test coverage from 62% to 85% for unit testing in <b>Jasmine</b> for test driven development (<b>TDD</b>) and added <b>E2E</b> test cases in <b>Cypress</b> for behavior driven development (<b>BDD</b>).",
+        "Implemented filter functionality to tables which brought search functionality to multiple pages.",
+        "<b>Skills</b>: Angular, Ngrx, Typescript, Javascript, Cypress, Python, AWS, Version Control.",
+      ],
+    },
+    {
+      position: "Member of Technical Staff",
+      company: "Colortokens",
+      url: "https://colortokens.com/",
+      location: "Bengaluru, India",
+      start: "08/2019",
+      end: "10/2021",
+      description: [
+        "Work in full-stack (frontend focussed) development of new cyber security applications on SaaS based platform from scratch, developing and integrating multiple products on different tech stacks, and maintenance of the existing scalable web applications with utmost quality, developing reusable components in the micro-frontend architecture using <b>Angular, NgRx, React, Redux, Rxjs, D3</b>, UI Development, APIs design and development in <b>Java</b>, <b>Spring</b>, <b>GraphQL</b> queries responsive design, Unit testing, maintaining and improving existing codebases, and code reviews.",
+        "<b>Led</b> UI development teams effectively with planning, architecture, API design, work assignment, coordinating with UX teams.",
+        "Contributed to deployment and release workflows for UI applications across <b>AWS</b> and <b>Azure</b> environments for multiple products, improving release efficiency and ensuring smooth production rollouts.",
+        "Worked as OnCall developer which had production support responsibilities including production bug fixes, resolving customer issues, resolving system outages, and primary point of contact for application team, etc.",
+        "Proven proficiency in implementing scrum, agile methodologies and adhering to the software development life cycle (SDLC) best practices, ensuring efficient project management, timely delivery, and high-quality software solutions.",
+        "Worked on customer specific projects which need special use case implementation in strict deadlines improving customer experience. This particular project UserAccess Group bagged a 2 years contract with a customer which is developed in a very short span of two weeks.",
+        "Developed APIs in <b>Java</b> using <b>Spring</b> and <b>Python</b> with <b>Flask</b>, <b>Object oriented programming concepts, ORM, Oracle, MongoDB</b> in microservices architecture.",
+        "Handled deployments using <b>Docker</b>, <b>Kubernetes</b>, <b>CI/CD</b> pipelines, <b>Jenkins</b>.",
+        "Architected and Implemented role based access control (RBAC) from UI side. Different workflows for different types of users like security admin, policy admin, asset admin, view only.",
+        "Worked on UI chart libraries like <b>chats.js</b>, <b>D3</b> to generate charts visualizing the security of zones, assets and visualizing the traffic between workloads, assets, networks.",
+        "<b>Production support</b> responsibilities which includes responsibilities like prod bug fixes, resolving system outages and primary POC.",
+        "<b>Skills</b>: React, Angular, Typescript, Javascript, CSS3, Java, Spring, MongoDB, Cloud Services (Azure, AWS), GraphQL, D3, Chart.js, Webpack, Jasmine, HTML, Bootstrap, SCSS, Jenkins, Jira, JSON, Continuous Integration.",
+      ],
+    },
+    {
+      position: "Software Engineer",
+      company: "Capgemini",
+      url: "https://www.capgemini.com/",
+      location: "Chennai, India",
+      start: "01/2019",
+      end: "08/2019",
+      description: [
+        "Designed and developed enterprise Java web applications using Spring Framework and Angular to analyze and visualize large business datasets, improving reporting efficiency and reducing manual effort.",
+        "Built RESTful APIs and backend services in Java using Spring Boot to aggregate, transform, and deliver data from multiple sources for analytics dashboards and business reports.",
+        "Created interactive dashboards and data-driven UI components in Angular with filtering, sorting, and drill-down capabilities, enabling stakeholders to identify trends and make data-backed decisions.",
+        "Optimized SQL queries, data processing logic, and backend performance in Java-based services, reducing report generation time and improving application responsiveness for high-volume datasets.",
+        "Collaborated with business analysts, QA, and cross-functional teams in an Agile environment to gather reporting requirements, validate data accuracy, and deliver scalable analytics solutions using Capgemini technologies stack.",
+      ],
+    },
+  ],
+
+  education: [
+    {
+      degree: "Bachelor of Technology",
+      university: "Jawaharlal Nehru Institute of Technology",
+      url: "https://jntuh.ac.in/",
+      location: "Hyderabad, India",
+      start: "07/2015",
+      end: "05/2019",
+      description: ["Major in Information Technology"],
+    },
+    {
+      degree: "Master of Science",
+      university: "Southern Arkansas University",
+      url: "https://web.saumag.edu/",
+      location: "Magnolia, AR, USA",
+      start: "01/2023",
+      end: "05/2024",
+      description: ["Major in Computer and Information Science"],
+    },
+  ],
+};
 
 export const EmptyData: ResumeData = {
-	"personal": {
-		"name": "",
-		"website": {
-			"readable": "",
-			"link": ""
-		},
-		"email": "",
-		"github": {
-			"readable": "",
-			"link": ""
-		},
-		"linkedin": {
-			"readable": "",
-			"link": ""
-		},
-		"skillset": []
-	},
-	"work_experience": [
-		{
-			"company": "",
-			"position": "",
-			"url": "",
-			"location": "",
-			"start": "",
-			"end": "",
-			"description": [
-				""
-			]
-		}
-	],
-	"education": [
-		{
-			"degree": "",
-			"university": "",
-			"url": "",
-			"location": "",
-			"start": "",
-			"end": "",
-			"description": [
-				""
-			]
-		}
-	]
-}
+  personal: {
+    name: "",
+    phone: "",
+    website: { readable: "", link: "" },
+    email: "",
+    github: { readable: "", link: "" },
+    linkedin: { readable: "", link: "" },
+    skillset: [],
+  },
+  summary: [""],
+  skills: [""],
+  projects: [],
+  work_experience: [
+    {
+      company: "",
+      position: "",
+      url: "",
+      location: "",
+      start: "",
+      end: "",
+      description: [""],
+    },
+  ],
+  education: [
+    {
+      degree: "",
+      university: "",
+      url: "",
+      location: "",
+      start: "",
+      end: "",
+      description: [""],
+    },
+  ],
+};

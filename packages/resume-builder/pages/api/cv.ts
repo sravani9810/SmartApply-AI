@@ -89,7 +89,8 @@ const handler = async (_: NextApiRequest, res: NextApiResponse) => {
       await page.setContent(html);
       buffer = await page.pdf({
         scale: 0.85,
-        pageRanges: '1-2',
+        format: 'letter',
+        printBackground: true,
       });
     }
     if (_.query['download']) {

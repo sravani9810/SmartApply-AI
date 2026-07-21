@@ -20,6 +20,7 @@ export interface Skill {
     name: string;
     website: SocialLink;
     email: string;
+    phone?: string;
     github: SocialLink;
     linkedin: SocialLink;
     skillset: SkillSetCategory[];
@@ -47,6 +48,16 @@ export interface Skill {
   
   export interface ResumeData {
     personal: PersonalData;
+    /** Free-text summary paragraphs, rendered under a "Summary" heading. */
+    summary?: string[];
+    /**
+     * Skill lines rendered as bullets under "Skills" (each string is one
+     * bullet, e.g. pipe-separated tech). When present, these take precedence
+     * over `personal.skillset` in the template.
+     */
+    skills?: string[];
+    /** Personal / side projects, rendered under a "Personal Project" heading. */
+    projects?: WorkExperience[];
     work_experience: WorkExperience[];
     education: Education[];
   }
