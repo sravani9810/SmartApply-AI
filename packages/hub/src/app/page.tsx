@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getStats, getJobs, getFlavors, getStatusCounts } from "../db/queries";
 import { refreshJobs } from "../db/actions";
 import { JOB_STATUSES } from "../lib/status";
+import { JobsTable } from "../components/JobsTable";
 
 // Read the DB on every request (local single-user app).
 export const dynamic = "force-dynamic";
@@ -77,25 +78,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         {jobs.length === 0 ? (
           <p className="empty">No jobs yet — run the Part 1 pipeline, then <code>npm run db:seed</code>.</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Title</th><th>Company</th><th>Location</th><th>Source</th><th>Status</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((j) => (
-                <tr key={j.id}>
-                  <td><Link href={`/jobs/${j.id}`}>{j.title}</Link></td>
-                  <td>{j.company}</td>
-                  <td className="muted">{j.location ?? "—"}</td>
-                  <td><span className="pill">{j.source || "—"}</span></td>
-                  <td><span className="pill">{j.status}</span></td>
-                  <td>{j.url ? <a href={j.url} target="_blank" rel="noreferrer">open ↗</a> : null}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <JobsTable jobs={jobs} />
         )}
       </div>
     </main>

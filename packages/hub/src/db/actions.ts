@@ -6,6 +6,36 @@ import { db } from "./client";
 import * as s from "./schema";
 import { autoTag } from "../lib/tags";
 import { runIngest } from "../lib/ingest";
+import { isJobStatus } from "../lib/status";
+
+/** Set a job's status and mirror it onto its application (shared by row + bulk). */
+function applyStatusToJob(jobId: string, status: string) {
+  if (!isJobStatus(status)) return;
+  const job = db.select().from(s.jobs).where(eq(s.jobs.id, jobId)).get();
+  if (!job) return;
+  db.update(s.jobs).set({ status }).where(eq(s.jobs.id, jobId)).run();
+  const app = db.select().from(s.applications).where(eq(s.applications.jobId, jobId)).get();
+  if (app) {
+    db.update(s.applications)
+      .set({ status, appliedAt: status === "applied" ? new Date().toISOString() : app.appliedAt })
+      .where(eq(s.applications.id, app.id)).run();
+  }
+}
+
+/** Row action: set one job's status (Apply / Not applying buttons). */
+export async function setStatusValue(jobId: string, status: string) {
+  applyStatusToJob(jobId, status);
+  revalidatePath("/");
+  revalidatePath("/applications");
+  revalidatePath(`/jobs/${jobId}`);
+}
+
+/** Bulk action: set many jobs' status from the table checkboxes. */
+export async function bulkSetStatus(ids: string[], status: string) {
+  for (const id of ids) applyStatusToJob(id, status);
+  revalidatePath("/");
+  revalidatePath("/applications");
+}
 
 /** Run the Part 1 pipeline and upsert jobs into the DB (dashboard button). */
 export async function refreshJobs() {
