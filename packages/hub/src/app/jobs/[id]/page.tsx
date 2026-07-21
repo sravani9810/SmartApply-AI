@@ -95,6 +95,31 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         </div>
       ) : null}
 
+      {tailoring?.resumeId ? (
+        <>
+          <h2>Apply</h2>
+          <div className="panel" style={{ padding: "14px 18px" }}>
+            <ol className="steps">
+              <li>
+                {job.url
+                  ? <a href={job.url} target="_blank" rel="noreferrer">Open the posting →</a>
+                  : "Open the posting"} and let the autofill extension fill the form.
+              </li>
+              <li>
+                <a href={`/api/resume/${tailoring.resumeId}/pdf`} target="_blank" rel="noreferrer">
+                  Download the tailored PDF
+                </a> and attach it (résumé upload can&apos;t be automated).
+              </li>
+              <li>Review everything, then submit the application yourself.</li>
+              <li>
+                Mark it applied — set status above, or click <b>Mark Applied</b> in the extension
+                (it syncs back here automatically).
+              </li>
+            </ol>
+          </div>
+        </>
+      ) : null}
+
       <h2>Description</h2>
       {job.description ? (
         <div className="jd">{job.description}</div>

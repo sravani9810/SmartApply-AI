@@ -89,3 +89,7 @@ select.status { background: #0d1220; color: var(--text); border: 1px solid var(-
 .rp-bullets li { line-height: 1.45; margin: 3px 0; }
 .rp-bullets li b { color: #1f2430; }
 .rp-p { line-height: 1.5; margin: 6px 0; }
+
+/* apply steps */
+.steps { margin: 0; padding-left: 20px; }
+.steps li { line-height: 1.6; margin: 6px 0; }

@@ -50,7 +50,19 @@ Content-library model (experiences · tagged bullet pool · tag ontology · skil
 · summary · flavors) that compiles to a `ResumeData` for the Part 4 template.
 Schema: [`src/db/schema.ts`](src/db/schema.ts). See `docs/HUB_PLAN.md` §4.
 
+## Extension bridge (Phase 5)
+
+The autofill extension (Part 2) talks to the hub over localhost (CORS-enabled):
+
+- `GET /api/jobs` — jobs-export shape; the extension's **↻ Sync jobs from Hub**.
+- `GET /api/application/[jobId]` — tailoring context (flavor, fit, PDF url) shown
+  on the application tab.
+- `POST /api/status` — status write-back (`{ id, status }`); the extension's
+  Mark Applied/Skipped calls this, updating the job + application.
+
 ## Status
 
-Phases 0–3 done (data layer, seed, dashboard, curate UI, job ingest). Next:
-Phase 4 (Claude tailoring on your subscription via the Agent SDK).
+Phases 0–6 done: data layer + seed, browse/curate UI, job ingest (Part 1 JD
+capture), Claude tailoring on your subscription (Agent SDK), the extension bridge,
+and the semi-auto apply loop (job → tailor → PDF → extension fill → submit →
+status). Optional Phase 7 (Tauri desktop wrapper) is not built.

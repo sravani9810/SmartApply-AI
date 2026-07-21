@@ -15,9 +15,16 @@ Part 1 pipeline ──writes──▶ jobs-export.json ──load──▶ Exten
 Extension ──"Export status updates"──▶ status-updates.json ──read──▶ Part 1 pipeline ──▶ Sheet
 ```
 
-- **Load jobs** — in the popup, pick your `jobs-export.json` (see
-  [`examples/jobs-export.sample.json`](examples/jobs-export.sample.json)). Jobs
+- **Sync jobs from the Hub** *(recommended)* — click **↻ Sync jobs from Hub** in
+  the popup to pull jobs live from the SmartApply Hub (Part 0) over
+  `http://localhost:3100/api/jobs`. Set a different Hub URL under *Advanced*.
+  (The manual `jobs-export.json` file load still works as a fallback — see
+  [`examples/jobs-export.sample.json`](examples/jobs-export.sample.json).) Jobs
   are stored in `chrome.storage.local`.
+- **Tailored context** — when the current tab matches a job you tailored in the
+  Hub, the popup shows the flavor, fit score, and a **Download tailored PDF** link
+  to attach. Marking a job Applied/Skipped **syncs the status back to the Hub**
+  automatically (`POST /api/status`), so the Applications view stays current.
 - **This job** — the popup matches the current tab's URL to a loaded job
   (by Indeed `jk`, or overlapping URL path) and shows its title/company/status.
   If it can't match, pick the job manually from the dropdown.

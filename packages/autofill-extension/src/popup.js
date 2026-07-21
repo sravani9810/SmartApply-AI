@@ -12,6 +12,11 @@ import {
   setStatus,
   matchJobForUrl,
   buildStatusUpdates,
+  syncFromHub,
+  postStatusToHub,
+  getApplicationContext,
+  getHubUrl,
+  setHubUrl,
 } from "./jobs.js";
 
 const $ = (id) => document.getElementById(id);
@@ -159,25 +164,63 @@ function renderJob() {
       .join("");
 }
 
+/** Show the hub's tailoring context (flavor, fit, PDF to attach) for a job. */
+async function showTailored(job) {
+  const el = $("jobTailored");
+  el.innerHTML = "";
+  if (!job) return;
+  const ctx = await getApplicationContext(job.id);
+  if (!ctx || !ctx.tailored) {
+    el.innerHTML = `<span class="muted">No tailored résumé yet — tailor it in the Hub.</span>`;
+    return;
+  }
+  const fit = ctx.fitScore != null ? `${Math.round(ctx.fitScore * 100)}% fit` : "";
+  const by = ctx.usedClaude ? "Claude" : "tag-based";
+  const base = await getHubUrl();
+  el.innerHTML =
+    `<div><b>Tailored:</b> ${ctx.flavor ?? "résumé"} · ${fit} · ${by}</div>` +
+    `<a href="${base}${ctx.pdfUrl}" target="_blank" rel="noreferrer">⬇ Download tailored PDF to attach</a>`;
+}
+
 async function refreshCurrentJob() {
   const url = await activeTabUrl();
   currentJob = matchJobForUrl(url, jobs) ?? currentJob;
   renderJob();
+  await showTailored(currentJob);
 }
 
-$("jobPicker").addEventListener("change", (e) => {
+$("jobPicker").addEventListener("change", async (e) => {
   currentJob = jobs.find((j) => j.id === e.target.value) ?? null;
   renderJob();
+  await showTailored(currentJob);
 });
 
 async function mark(status) {
   if (!currentJob) return;
   statuses[currentJob.id] = await setStatus(currentJob.id, status);
   renderJob();
-  statusEl.textContent = `Marked "${currentJob.title}" as ${status}.`;
+  const synced = await postStatusToHub(currentJob.id, status); // write-back to the hub
+  statusEl.textContent = `Marked "${currentJob.title}" as ${status}${synced ? " (synced to Hub)" : ""}.`;
 }
 $("markApplied").addEventListener("click", () => mark("applied"));
 $("markSkipped").addEventListener("click", () => mark("skipped"));
+
+$("syncHub").addEventListener("click", async () => {
+  statusEl.textContent = "Syncing from Hub…";
+  try {
+    const count = await syncFromHub();
+    jobs = await loadJobs();
+    await refreshCurrentJob();
+    statusEl.textContent = `Synced ${count} job(s) from Hub.`;
+  } catch (err) {
+    statusEl.textContent = `Sync failed: ${err.message}`;
+  }
+});
+
+$("hubUrl").addEventListener("change", async (e) => {
+  await setHubUrl(e.target.value.trim());
+  statusEl.textContent = "Hub URL saved.";
+});
 
 $("importJobs").addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
@@ -215,6 +258,7 @@ $("exportStatus").addEventListener("click", async () => {
   $("autofillOnOpen").checked = s.autofillOnOpen;
   $("learnToggle").checked = s.learningEnabled;
   await showLearnedCount();
+  $("hubUrl").value = await getHubUrl();
   jobs = await loadJobs();
   statuses = await getStatuses();
   await refreshCurrentJob();

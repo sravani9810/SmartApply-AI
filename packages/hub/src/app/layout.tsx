@@ -10,8 +10,11 @@ import Link from "next/link";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    // suppressHydrationWarning: browser extensions (e.g. Grammarly) add
+    // attributes to <html>/<body> before hydration; this only ignores those
+    // attribute diffs, not real content mismatches.
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <nav className="nav">
           <div className="nav-inner">
             <Link href="/" className="brand">SmartApply Hub</Link>
