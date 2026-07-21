@@ -109,3 +109,88 @@ export interface MatchResult {
   /** Optional tailored resume text, when tailoring is requested. */
   tailoredResume?: string;
 }
+
+/**
+ * Résumé render format (Part 0 / Part 4).
+ *
+ * The canonical shape the resume-builder's CV template renders and the hub
+ * compiles a flavor down to. Kept in `@smartapply/shared` so the hub can produce
+ * a `ResumeData` and the builder can render it.
+ */
+export interface SocialLink {
+  readable: string;
+  link: string;
+}
+
+export interface ResumeSkill {
+  skill: string;
+  level: string;
+  optional?: boolean;
+  new?: boolean;
+}
+
+export interface SkillSetCategory {
+  type: string;
+  label: string;
+  skills: ResumeSkill[];
+}
+
+export interface PersonalData {
+  name: string;
+  website: SocialLink;
+  email: string;
+  phone?: string;
+  github: SocialLink;
+  linkedin: SocialLink;
+  skillset: SkillSetCategory[];
+}
+
+export interface ResumeEntry {
+  company: string;
+  position: string;
+  url: string;
+  location: string;
+  start: string;
+  end: string;
+  description: string[];
+}
+
+export interface EducationEntry {
+  degree: string;
+  university: string;
+  url: string;
+  location: string;
+  start: string;
+  end: string;
+  description: string[];
+}
+
+export interface ResumeData {
+  personal: PersonalData;
+  /** Free-text summary paragraphs. */
+  summary?: string[];
+  /** Skill lines rendered as bullets (each string is one bullet). */
+  skills?: string[];
+  /** Personal / side projects. */
+  projects?: ResumeEntry[];
+  work_experience: ResumeEntry[];
+  education: EducationEntry[];
+}
+
+/**
+ * Hub library/flavor/application view contracts (Part 0).
+ *
+ * The hub's SQLite tables (via Drizzle) are the source of truth; these are the
+ * cross-package shapes used at API boundaries (e.g. serving the extension).
+ */
+export type FlavorKey = "frontend" | "backend" | "sde" | "cloud" | string;
+
+/** One application record: which résumé went to which job. */
+export interface ApplicationRecord {
+  id: string;
+  jobId: string;
+  resumeId?: string;
+  flavor?: FlavorKey;
+  status: ApplicationStatus;
+  appliedAt?: string;
+}
