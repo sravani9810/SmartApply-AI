@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getStats, getJobs, getFlavors } from "../db/queries";
 
 // Read the DB on every request (local single-user app).
@@ -67,7 +68,7 @@ export default function Dashboard() {
             <tbody>
               {jobs.map((j) => (
                 <tr key={j.id}>
-                  <td>{j.title}</td>
+                  <td><Link href={`/jobs/${j.id}`}>{j.title}</Link></td>
                   <td>{j.company}</td>
                   <td className="muted">{j.location ?? "—"}</td>
                   <td><span className="pill">{j.source || "—"}</span></td>
