@@ -10,10 +10,12 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/seed/seed.ts",
+    "ingest": "tsx src/scripts/ingest.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@smartapply/shared": "*",
+    "@smartapply/job-search": "*",
     "better-sqlite3": "^11.8.1",
     "drizzle-orm": "^0.38.3",
     "exceljs": "^4.4.0",

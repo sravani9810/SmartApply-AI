@@ -5,6 +5,13 @@ import { eq } from "drizzle-orm";
 import { db } from "./client";
 import * as s from "./schema";
 import { autoTag } from "../lib/tags";
+import { runIngest } from "../lib/ingest";
+
+/** Run the Part 1 pipeline and upsert jobs into the DB (dashboard button). */
+export async function refreshJobs() {
+  await runIngest();
+  revalidatePath("/");
+}
 
 /** Edit a bullet's primary phrasing. */
 export async function editBulletText(bulletId: string, formData: FormData) {

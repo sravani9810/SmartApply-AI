@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getStats, getJobs, getFlavors } from "../db/queries";
+import { refreshJobs } from "../db/actions";
 
 // Read the DB on every request (local single-user app).
 export const dynamic = "force-dynamic";
@@ -54,8 +55,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      <h2>Jobs ({jobs.length})</h2>
-      <div className="panel">
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <h2 style={{ marginBottom: 0 }}>Jobs ({jobs.length})</h2>
+        <form action={refreshJobs}>
+          <button className="btn" type="submit">↻ Refresh from Part 1</button>
+        </form>
+      </div>
+      <div className="panel" style={{ marginTop: 12 }}>
         {jobs.length === 0 ? (
           <p className="empty">No jobs yet — run the Part 1 pipeline, then <code>npm run db:seed</code>.</p>
         ) : (
