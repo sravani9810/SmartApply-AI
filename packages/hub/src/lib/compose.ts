@@ -342,6 +342,37 @@ export async function composeResume(input: ComposeInput): Promise<ComposeOutcome
   };
 }
 
+/**
+ * Reconstruct a refinable ComposeState from an already-compiled ResumeData by
+ * matching each rendered bullet back to its library bullet id. Lets a saved
+ * résumé (composed or auto-tailored) be refined without persisting the plan.
+ */
+export function deriveState(resume: ResumeData): ComposeState {
+  const norm = (t: string) => stripHtml(t).toLowerCase().replace(/\s+/g, " ").trim();
+
+  const index = new Map<string, { experienceId: string; bulletId: string }>();
+  for (const e of db.select().from(s.experiences).all()) {
+    for (const b of db.select().from(s.bullets).where(eq(s.bullets.experienceId, e.id)).all()) {
+      const variants = db.select().from(s.bulletVariants).where(eq(s.bulletVariants.bulletId, b.id)).all();
+      const text = variants.find((v) => v.isPrimary)?.text ?? variants[0]?.text ?? "";
+      const key = norm(text);
+      if (key) index.set(key, { experienceId: e.id, bulletId: b.id });
+    }
+  }
+
+  const selection: Record<string, string[]> = {};
+  const entries = [...(resume.work_experience ?? []), ...(resume.projects ?? [])];
+  for (const entry of entries) {
+    for (const d of entry.description) {
+      const hit = index.get(norm(d));
+      if (hit) (selection[hit.experienceId] ??= []).push(hit.bulletId);
+    }
+  }
+
+  const skills = (resume.skills ?? []).flatMap((l) => l.split("|").map((x) => x.trim())).filter(Boolean);
+  return { selection, skills, summary: resume.summary ?? [] };
+}
+
 /** Pack skill tokens into pipe-joined lines when Claude returns a flat token list. */
 function chunkSkills(skills: string[], perLine = 15): string[] {
   // If the model already returned full lines (containing "|"), keep them as-is.

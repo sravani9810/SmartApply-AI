@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "./client";
 import * as s from "./schema";
@@ -88,7 +89,8 @@ export async function composeResumeAction(input: {
       const existing = db.select().from(s.resumes).where(eq(s.resumes.id, id)).get();
       db.update(s.resumes).set({
         resumeData,
-        label: label || existing?.label || "Résumé",
+        // Keep the existing label (incl. a fork's "(copy)") stable across refines.
+        label: existing?.label || label || "Résumé",
         instructions: log.join("\n") || existing?.instructions || null,
         company: meta.company || existing?.company || null,
         domain: meta.domain || existing?.domain || null,
@@ -119,6 +121,32 @@ export async function composeResumeAction(input: {
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+}
+
+/**
+ * Fork a saved résumé into a new library entry ("create another from this"),
+ * copying its content + metadata so it can be refined independently. Redirects
+ * to the new résumé's detail page.
+ */
+export async function duplicateResume(id: string) {
+  const src = db.select().from(s.resumes).where(eq(s.resumes.id, id)).get();
+  if (!src) return;
+  const newId = crypto.randomUUID();
+  db.insert(s.resumes).values({
+    id: newId,
+    flavorId: src.flavorId,
+    resumeData: src.resumeData,
+    label: `${src.label ?? "Résumé"} (copy)`,
+    jd: src.jd,
+    instructions: src.instructions,
+    company: src.company,
+    domain: src.domain,
+    technologies: src.technologies,
+    targetRole: src.targetRole,
+    usedClaude: src.usedClaude,
+  }).run();
+  revalidatePath("/resumes");
+  redirect(`/resumes/${newId}`);
 }
 
 /** Run the Part 1 pipeline and upsert jobs into the DB (dashboard button). */

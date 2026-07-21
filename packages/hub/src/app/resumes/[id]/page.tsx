@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getResume } from "../../../db/queries";
-import { ResumePreview } from "../../../components/ResumePreview";
+import { deriveState } from "../../../lib/compose";
+import { duplicateResume } from "../../../db/actions";
+import { ResumeRefiner } from "../../../components/ResumeRefiner";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +17,21 @@ export default async function ResumePage({ params }: { params: Promise<{ id: str
     (resume.data.projects?.reduce((n, e) => n + e.description.length, 0) ?? 0);
 
   const techs = (resume.technologies ?? []) as string[];
+  const initialLog = (resume.instructions ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+  const initialState = deriveState(resume.data);
+  const forkThis = duplicateResume.bind(null, id);
 
   return (
     <main className="wrap">
       <Link href="/resumes" className="backlink">← résumé library</Link>
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", marginTop: 10 }}>
         <h1 style={{ marginBottom: 0 }}>{resume.label || "Tailored résumé"}</h1>
-        <a className="btn" href={`/api/resume/${id}/pdf`} target="_blank" rel="noreferrer">Download PDF</a>
+        <div className="rowacts">
+          <form action={forkThis}>
+            <button className="btn" type="submit">＋ Create another from this</button>
+          </form>
+          <a className="btn" href={`/api/resume/${id}/pdf`} target="_blank" rel="noreferrer">Download PDF</a>
+        </div>
       </div>
       <p className="sub">
         {[resume.company, resume.domain, resume.targetRole].filter(Boolean).join(" · ")}
@@ -33,10 +43,16 @@ export default async function ResumePage({ params }: { params: Promise<{ id: str
           {techs.map((t) => <span className="pill t" key={t}>{t}</span>)}
         </div>
       ) : null}
-      {resume.instructions ? (
-        <p className="muted" style={{ fontSize: 13 }}><b>Instructions:</b> {resume.instructions}</p>
-      ) : null}
-      <ResumePreview data={resume.data} />
+
+      <ResumeRefiner
+        resumeId={id}
+        initialData={resume.data}
+        initialState={initialState}
+        initialLog={initialLog}
+        jd={resume.jd ?? undefined}
+        flavorId={resume.flavorId ?? undefined}
+        targetRole={resume.targetRole ?? undefined}
+      />
     </main>
   );
 }
