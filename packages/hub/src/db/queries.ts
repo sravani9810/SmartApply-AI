@@ -17,21 +17,30 @@ export function getStats() {
   };
 }
 
-export function getJobs(limit = 50) {
-  return db
-    .select({
-      id: s.jobs.id,
-      title: s.jobs.title,
-      company: s.jobs.company,
-      location: s.jobs.location,
-      source: s.jobs.source,
-      status: s.jobs.status,
-      url: s.jobs.url,
-    })
-    .from(s.jobs)
-    .orderBy(sql`${s.jobs.capturedAt} desc`)
-    .limit(limit)
-    .all();
+export function getJobs(limit = 50, status?: string) {
+  const cols = {
+    id: s.jobs.id,
+    title: s.jobs.title,
+    company: s.jobs.company,
+    location: s.jobs.location,
+    source: s.jobs.source,
+    status: s.jobs.status,
+    url: s.jobs.url,
+  };
+  const q = db.select(cols).from(s.jobs);
+  const rows = status
+    ? q.where(eq(s.jobs.status, status))
+    : q;
+  return rows.orderBy(sql`${s.jobs.capturedAt} desc`).limit(limit).all();
+}
+
+/** Count of jobs per status, for the dashboard filter bar. */
+export function getStatusCounts(): Record<string, number> {
+  const rows = db.select({ status: s.jobs.status, n: sql<number>`count(*)` })
+    .from(s.jobs).groupBy(s.jobs.status).all();
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.status] = r.n;
+  return out;
 }
 
 export function getFlavors() {

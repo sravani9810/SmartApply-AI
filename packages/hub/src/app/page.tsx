@@ -1,14 +1,18 @@
 import Link from "next/link";
-import { getStats, getJobs, getFlavors } from "../db/queries";
+import { getStats, getJobs, getFlavors, getStatusCounts } from "../db/queries";
 import { refreshJobs } from "../db/actions";
+import { JOB_STATUSES } from "../lib/status";
 
 // Read the DB on every request (local single-user app).
 export const dynamic = "force-dynamic";
 
-export default function Dashboard() {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+  const { status } = await searchParams;
   const stats = getStats();
-  const jobs = getJobs();
+  const counts = getStatusCounts();
+  const jobs = getJobs(200, status);
   const flavors = getFlavors();
+  const href = (s?: string) => (s ? `/?status=${s}` : "/");
 
   const statCards: Array<[string, number]> = [
     ["Jobs", stats.jobs],
@@ -60,6 +64,14 @@ export default function Dashboard() {
         <form action={refreshJobs}>
           <button className="btn" type="submit">↻ Refresh from Part 1</button>
         </form>
+      </div>
+      <div className="filterbar">
+        <Link href={href()} className={`chip${!status ? " on" : ""}`}>All <b>{stats.jobs}</b></Link>
+        {JOB_STATUSES.map((st) => (
+          <Link key={st} href={href(st)} className={`chip${status === st ? " on" : ""}`}>
+            {st} <b>{counts[st] ?? 0}</b>
+          </Link>
+        ))}
       </div>
       <div className="panel" style={{ marginTop: 12 }}>
         {jobs.length === 0 ? (

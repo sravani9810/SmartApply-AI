@@ -84,11 +84,11 @@ export async function tailorForJob(jobId: string, flavorId: string): Promise<Tai
   if (existing) {
     db.update(s.applications).set({
       resumeId, match: matchResult, usedClaude,
-      status: existing.status === "new" ? "matched" : existing.status,
+      status: existing.status === "new" ? "in-progress" : existing.status,
     }).where(eq(s.applications.id, applicationId)).run();
   } else {
     db.insert(s.applications).values({
-      id: applicationId, jobId, resumeId, status: "matched", match: matchResult, usedClaude,
+      id: applicationId, jobId, resumeId, status: "in-progress", match: matchResult, usedClaude,
     }).run();
   }
   db.delete(s.applicationBullets).where(eq(s.applicationBullets.applicationId, applicationId)).run();
@@ -97,7 +97,7 @@ export async function tailorForJob(jobId: string, flavorId: string): Promise<Tai
   }
 
   db.update(s.jobs)
-    .set({ fitScore: matchResult.fitScore, status: job.status === "new" ? "matched" : job.status })
+    .set({ fitScore: matchResult.fitScore, status: job.status === "new" ? "in-progress" : job.status })
     .where(eq(s.jobs.id, jobId)).run();
 
   return { resumeId, applicationId, usedClaude, matchResult, selectedCount: selectedBulletIds.length };

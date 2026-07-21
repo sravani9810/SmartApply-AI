@@ -250,6 +250,138 @@ $("exportStatus").addEventListener("click", async () => {
   statusEl.textContent = `Exported ${payload.updates.length} status update(s).`;
 });
 
+/* ---------- add job & Claude fill (injected page functions) ---------- */
+
+// These run in the page via chrome.scripting.executeScript, so they must be
+// self-contained (no references to popup scope).
+
+function scrapeJobFromPage() {
+  const q = (sel) => document.querySelector(sel);
+  const t = (el) => ((el && (el.innerText || el.textContent)) || "").replace(/\s+/g, " ").trim();
+  const title =
+    t(q('[data-testid="jobsearch-JobInfoHeader-title"]')) || t(q("h1")) || document.title;
+  const company =
+    t(q('[data-testid="company-name"]')) || t(q('[data-company-name]')) ||
+    q('meta[property="og:site_name"]')?.content || "";
+  const descEl = q("#jobDescriptionText") || q('[class*="jobDescription"]') || q("article") || q("main");
+  const description = (
+    (descEl && (descEl.innerText || descEl.textContent)) ||
+    q('meta[name="description"]')?.content || ""
+  ).trim();
+  return { url: location.href, title, company, description: description.slice(0, 20000) };
+}
+
+function collectEmptyFields() {
+  const out = [];
+  let k = 0;
+  const skip = ["hidden", "password", "file", "submit", "button", "checkbox", "radio", "email", "tel", "url"];
+  const visible = (el) => el.offsetParent !== null || getComputedStyle(el).position === "fixed";
+  const labelOf = (el) => {
+    let l = el.getAttribute("aria-label") || "";
+    if (!l && el.id) l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent || "";
+    if (!l) l = el.closest("label")?.textContent || "";
+    if (!l) l = el.placeholder || el.name || "";
+    return l.replace(/\s+/g, " ").trim();
+  };
+  document.querySelectorAll("input, textarea, select").forEach((el) => {
+    const tag = el.tagName.toLowerCase();
+    if (el.disabled || el.readOnly) return;
+    if (tag !== "select" && skip.includes((el.type || "").toLowerCase())) return;
+    if (!visible(el)) return;
+    if ((el.value || "").trim() !== "") return; // only empty fields
+    const label = labelOf(el);
+    if (!label) return;
+    const key = "sa" + k++;
+    el.setAttribute("data-sa-key", key);
+    out.push({
+      key, label,
+      type: tag === "textarea" ? "textarea" : tag === "select" ? "select" : "text",
+      options: tag === "select" ? [...el.options].map((o) => o.text.trim()).filter(Boolean) : undefined,
+    });
+  });
+  return out;
+}
+
+function fillAnswers(byKey) {
+  let filled = 0;
+  const setVal = (el, value) => {
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")?.set;
+    if (setter) setter.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  for (const [key, value] of Object.entries(byKey)) {
+    if (!value) continue;
+    const el = document.querySelector(`[data-sa-key="${key}"]`);
+    if (!el) continue;
+    if (el.tagName.toLowerCase() === "select") {
+      const opt = [...el.options].find((o) => o.text.trim().toLowerCase() === String(value).toLowerCase());
+      if (opt) { el.value = opt.value; el.dispatchEvent(new Event("change", { bubbles: true })); filled++; }
+    } else if ((el.value || "").trim() === "") {
+      setVal(el, value);
+      filled++;
+    }
+  }
+  return filled;
+}
+
+async function activeTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
+
+$("addJob").addEventListener("click", async () => {
+  statusEl.textContent = "Reading job page…";
+  try {
+    const tab = await activeTab();
+    if (!tab?.id) throw new Error("No active tab.");
+    const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: scrapeJobFromPage });
+    const data = r?.result;
+    if (!data?.title) throw new Error("Couldn't read a job from this page.");
+    const base = await getHubUrl();
+    statusEl.textContent = "Adding & tailoring…";
+    const res = await fetch(`${base}/api/jobs/add`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || `Hub returned ${res.status}`);
+    try { await syncFromHub(); jobs = await loadJobs(); } catch { /* keep old */ }
+    await refreshCurrentJob();
+    const fit = j.fitScore != null ? `${Math.round(j.fitScore * 100)}% fit` : "";
+    statusEl.innerHTML =
+      `Added & tailored (${j.flavor ?? "résumé"} · ${fit} · ${j.usedClaude ? "Claude" : "tag-based"}). ` +
+      `<a href="${base}${j.pdfUrl}" target="_blank" rel="noreferrer">PDF</a> · ` +
+      `<a href="${base}${j.jobUrl}" target="_blank" rel="noreferrer">Hub</a>`;
+  } catch (err) {
+    statusEl.textContent = `Add failed: ${err.message}`;
+  }
+});
+
+$("fillClaude").addEventListener("click", async () => {
+  statusEl.textContent = "Collecting empty fields…";
+  try {
+    const tab = await activeTab();
+    if (!tab?.id) throw new Error("No active tab.");
+    const [c] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: collectEmptyFields });
+    const fields = c?.result || [];
+    if (fields.length === 0) { statusEl.textContent = "No empty fields left to fill."; return; }
+    const base = await getHubUrl();
+    statusEl.textContent = `Asking Claude about ${fields.length} field(s)…`;
+    const res = await fetch(`${base}/api/answer`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: tab.url, fields }),
+    });
+    const answers = (await res.json()).answers || {};
+    const byKey = {};
+    for (const f of fields) if (answers[f.label]) byKey[f.key] = answers[f.label];
+    if (Object.keys(byKey).length === 0) { statusEl.textContent = "Claude had no confident answers."; return; }
+    const [f] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: fillAnswers, args: [byKey] });
+    statusEl.textContent = `Claude filled ${f?.result ?? 0} field(s). Review before submitting.`;
+  } catch (err) {
+    statusEl.textContent = `Claude fill failed: ${err.message}`;
+  }
+});
+
 /* ---------- init ---------- */
 
 (async () => {

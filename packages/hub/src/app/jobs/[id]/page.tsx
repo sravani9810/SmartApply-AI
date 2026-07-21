@@ -2,10 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getJob, getJobTagNames, getFlavorFit, getFlavors, getTailoringForJob } from "../../../db/queries";
 import { analyzeJob, setJobStatus, tailorJob } from "../../../db/actions";
+import { JOB_STATUSES } from "../../../lib/status";
 
 export const dynamic = "force-dynamic";
 
-const STATUSES = ["new", "matched", "applied", "skipped", "error"];
+const STATUSES = JOB_STATUSES;
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

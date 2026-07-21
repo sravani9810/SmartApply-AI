@@ -25,6 +25,19 @@ Extension ──"Export status updates"──▶ status-updates.json ──read�
   Hub, the popup shows the flavor, fit score, and a **Download tailored PDF** link
   to attach. Marking a job Applied/Skipped **syncs the status back to the Hub**
   automatically (`POST /api/status`), so the Applications view stays current.
+- **➕ Add this job & make résumé** — on any job posting, scrape the page
+  (title/company/JD) and send it to the Hub (`POST /api/jobs/add`), which creates
+  the job, auto-picks the best-fit flavor, and tailors a résumé in one click —
+  then returns the fit and a PDF link.
+
+### Claude-assisted fill (for unknown fields)
+
+The **Fill** button fills everything it can match from your profile. For the
+questions it can't match, click **🤖 Fill unknowns with Claude**: the popup
+collects the still-empty fields and asks the Hub (`POST /api/answer`), which uses
+Claude — on your subscription — to answer them from your résumé + the JD, grounded
+and truthful (it returns blank for anything needing personal data it doesn't have).
+It only fills empty fields and never submits — review before you send.
 - **This job** — the popup matches the current tab's URL to a loaded job
   (by Indeed `jk`, or overlapping URL path) and shows its title/company/status.
   If it can't match, pick the job manually from the dropdown.
