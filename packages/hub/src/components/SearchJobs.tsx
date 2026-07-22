@@ -3,16 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { searchJobsAction, type SearchResult } from "../db/actions";
+import { PLATFORMS } from "../lib/platforms";
 
 /**
  * Dashboard search box: scrape jobs for keywords + location via the Part 1
  * pipeline and import them into the hub, then refresh the table.
  */
-const PLATFORMS = [
-  { key: "indeed", label: "Indeed" },
-  { key: "linkedin", label: "LinkedIn" },
-] as const;
-
 export function SearchJobs() {
   const [keywords, setKeywords] = useState("");
   const [location, setLocation] = useState("");

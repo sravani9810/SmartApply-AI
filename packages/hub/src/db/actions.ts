@@ -178,6 +178,13 @@ export async function controlSchedulerAction(cmd: "on" | "off" | "now") {
   return res;
 }
 
+/** Set which platforms the scheduled ingest scrapes (hub toggles). */
+export async function setSchedulerSourcesAction(sources: string[]) {
+  const { setSchedulerSources } = await import("./queries");
+  setSchedulerSources(sources);
+  revalidatePath("/scheduler");
+}
+
 /** Run the Part 1 pipeline and upsert jobs into the DB (dashboard button). */
 export async function refreshJobs() {
   await runIngest();

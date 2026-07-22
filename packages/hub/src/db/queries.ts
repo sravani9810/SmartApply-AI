@@ -1,6 +1,7 @@
 import { sql, eq, inArray } from "drizzle-orm";
 import { db } from "./client";
 import * as s from "./schema";
+import { PLATFORM_KEYS } from "../lib/platforms";
 
 const count = (table: Parameters<typeof db.select>[0] extends never ? never : any) =>
   db.select({ n: sql<number>`count(*)` }).from(table).get()?.n ?? 0;
@@ -135,6 +136,28 @@ export function getResume(id: string) {
   const r = db.select().from(s.resumes).where(eq(s.resumes.id, id)).get();
   if (!r) return null;
   return { ...r, data: r.resumeData as import("@smartapply/shared").ResumeData };
+}
+
+/** Generic settings get/set (JSON values keyed by string). */
+export function getSetting<T>(key: string): T | null {
+  const row = db.select().from(s.settings).where(eq(s.settings.key, key)).get();
+  return (row?.value as T | undefined) ?? null;
+}
+export function setSetting(key: string, value: unknown) {
+  db.insert(s.settings).values({ key, value })
+    .onConflictDoUpdate({ target: s.settings.key, set: { value } }).run();
+}
+
+const SCHEDULER_SOURCES_KEY = "schedulerSources";
+
+/** Platforms the scheduled ingest scrapes. Defaults to all platforms until set. */
+export function getSchedulerSources(): string[] {
+  const v = getSetting<string[]>(SCHEDULER_SOURCES_KEY);
+  return Array.isArray(v) ? v : [...PLATFORM_KEYS];
+}
+export function setSchedulerSources(sources: string[]) {
+  const clean = sources.filter((s) => PLATFORM_KEYS.includes(s));
+  setSetting(SCHEDULER_SOURCES_KEY, clean);
 }
 
 /** The flat application-form fields the extension fills (address, EEO, …). */

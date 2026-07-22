@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { controlSchedulerAction } from "../db/actions";
+import { controlSchedulerAction, setSchedulerSourcesAction } from "../db/actions";
+import { PLATFORMS } from "../lib/platforms";
 import type { SchedulerStatus } from "../lib/scheduler";
 
-export function SchedulerPanel({ status }: { status: SchedulerStatus }) {
+export function SchedulerPanel({ status, sources }: { status: SchedulerStatus; sources: string[] }) {
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set(sources));
   const router = useRouter();
 
   const act = (cmd: "on" | "off" | "now") =>
@@ -17,6 +19,16 @@ export function SchedulerPanel({ status }: { status: SchedulerStatus }) {
       setMsg(r.ok ? (r.output ?? "Done.") : `⚠ ${r.error}`);
       router.refresh();
     });
+
+  const togglePlatform = (key: string) => {
+    const next = new Set(sel);
+    next.has(key) ? next.delete(key) : next.add(key);
+    setSel(next);
+    startTransition(async () => {
+      await setSchedulerSourcesAction([...next]);
+      router.refresh();
+    });
+  };
 
   if (!status.supported) {
     return (
@@ -46,6 +58,24 @@ export function SchedulerPanel({ status }: { status: SchedulerStatus }) {
           <button className="btn" disabled={pending} onClick={() => act("now")}>Run now</button>
         </div>
       </div>
+
+      <div className="platforms" style={{ marginTop: 14 }}>
+        <span className="muted">Scrape on schedule:</span>
+        {PLATFORMS.map((p) => (
+          <label key={p.key} className="plat">
+            <input
+              type="checkbox" checked={sel.has(p.key)}
+              onChange={() => togglePlatform(p.key)} disabled={pending}
+            />
+            {p.label}
+          </label>
+        ))}
+      </div>
+      {sel.size === 0 ? (
+        <p className="err" style={{ fontSize: 12, marginTop: 4 }}>
+          No platforms selected — scheduled runs will do nothing.
+        </p>
+      ) : null}
 
       {status.detail ? (
         <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
