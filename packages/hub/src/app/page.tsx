@@ -4,6 +4,7 @@ import { refreshJobs } from "../db/actions";
 import { JOB_STATUSES } from "../lib/status";
 import { JobsTable } from "../components/JobsTable";
 import { SearchJobs } from "../components/SearchJobs";
+import { ClaudeStatus } from "../components/ClaudeStatus";
 
 // Read the DB on every request (local single-user app).
 export const dynamic = "force-dynamic";
@@ -28,7 +29,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   return (
     <main className="wrap">
-      <h1>SmartApply Hub</h1>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "start" }}>
+        <h1>SmartApply Hub</h1>
+        <ClaudeStatus />
+      </div>
       <p className="sub">Local job-search hub — Part 0. Library seeded from your résumé; jobs from Part 1.</p>
 
       <div className="stats">

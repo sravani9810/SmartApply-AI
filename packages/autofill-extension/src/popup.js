@@ -16,6 +16,7 @@ import {
   getHubUrl,
   setHubUrl,
   syncProfileFromHub,
+  checkHealth,
 } from "./jobs.js";
 
 const $ = (id) => document.getElementById(id);
@@ -112,6 +113,28 @@ $("clearLearned").addEventListener("click", async () => {
   await showLearnedCount();
   statusEl.textContent = "Cleared learned answers.";
 });
+
+/* ---------- connectivity status ---------- */
+
+function setDot(dotId, labelId, online, name, reason) {
+  const dot = $(dotId);
+  const label = $(labelId);
+  dot.className = `cdot ${online ? "on" : "off"}`;
+  label.textContent = `${name} ${online ? "online" : "offline"}`;
+  label.title = reason || "";
+}
+
+async function refreshHealth() {
+  $("hubLabel").textContent = "Hub…";
+  $("claudeLabel").textContent = "Claude…";
+  $("hubDot").className = "cdot";
+  $("claudeDot").className = "cdot";
+  const { hubOnline, claude } = await checkHealth();
+  setDot("hubDot", "hubLabel", hubOnline, "Hub", hubOnline ? "" : "hub unreachable");
+  setDot("claudeDot", "claudeLabel", hubOnline && claude.online, "Claude", claude.reason);
+}
+
+$("conn").addEventListener("click", refreshHealth); // click to re-check
 
 /* ---------- job context ---------- */
 
@@ -402,4 +425,5 @@ $("fillClaude").addEventListener("click", async () => {
   jobs = await loadJobs();
   statuses = await getStatuses();
   await refreshCurrentJob();
+  refreshHealth(); // async, updates the dots when it resolves
 })();

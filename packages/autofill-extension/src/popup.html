@@ -25,12 +25,22 @@
       textarea { width: 100%; box-sizing: border-box; padding: 4px 6px; min-height: 48px; resize: vertical; }
       label.chk { display: flex; align-items: center; gap: 6px; margin: 4px 0 8px; color: #333; }
       label.chk input { width: auto; }
+      .conn { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #666; margin: 6px 0 2px; }
+      .conn .sep { color: #ccc; }
+      .cdot { width: 8px; height: 8px; border-radius: 50%; background: #bbb; display: inline-block; }
+      .cdot.on { background: #1b7a3d; box-shadow: 0 0 4px #1b7a3d; }
+      .cdot.off { background: #c0392b; }
     </style>
   </head>
   <body>
     <div style="display:flex;align-items:center;gap:7px;">
       <img src="icons/icon32.png" width="20" height="20" alt="" />
       <strong>SmartApply</strong>
+    </div>
+    <div class="conn" id="conn">
+      <span class="cdot" id="hubDot"></span><span id="hubLabel">Hub…</span>
+      <span class="sep">·</span>
+      <span class="cdot" id="claudeDot"></span><span id="claudeLabel">Claude…</span>
     </div>
 
     <h2>This job</h2>
