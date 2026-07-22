@@ -3,6 +3,7 @@ import type { ResumeData } from "@smartapply/shared";
 import { db } from "../db/client";
 import * as s from "../db/schema";
 import { stripHtml } from "./tags";
+import { logWarn } from "./log";
 import { compile } from "./compile";
 import type { Selection } from "./compile";
 
@@ -225,7 +226,7 @@ async function planWithClaude(
     if (!text.trim()) return null;
     return coerce(extractJson(text), validIds, skills);
   } catch (err) {
-    console.warn("[compose] Claude Agent SDK unavailable/failed, using deterministic fallback:", (err as Error).message);
+    logWarn("compose", `Claude unavailable, using deterministic fallback: ${(err as Error).message}`);
     return null;
   }
 }

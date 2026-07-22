@@ -2,6 +2,7 @@ import { eq, like } from "drizzle-orm";
 import { db } from "../db/client";
 import * as s from "../db/schema";
 import { stripHtml } from "./tags";
+import { logWarn } from "./log";
 
 export interface FieldRequest {
   label: string;
@@ -90,7 +91,7 @@ export async function answerFields(fields: FieldRequest[], url?: string): Promis
     for (const it of arr) if (it.label && typeof it.answer === "string" && it.answer.trim()) out[it.label] = it.answer;
     return out;
   } catch (err) {
-    console.warn("[answer] Claude unavailable:", (err as Error).message);
+    logWarn("answer", `Claude unavailable: ${(err as Error).message}`);
     return {};
   }
 }

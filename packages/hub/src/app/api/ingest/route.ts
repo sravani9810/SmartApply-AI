@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logError } from "../../../lib/log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // job discovery (esp. a live browser board) can be slow
@@ -13,8 +14,7 @@ export async function POST() {
     const result = await runIngest();
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
-    const e = err as Error;
-    console.error("[api/ingest] failed:", e);
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+    logError("api.ingest", err);
+    return NextResponse.json({ ok: false, error: (err as Error).message }, { status: 500 });
   }
 }

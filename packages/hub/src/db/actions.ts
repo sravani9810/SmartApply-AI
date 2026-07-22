@@ -8,6 +8,7 @@ import * as s from "./schema";
 import { autoTag } from "../lib/tags";
 import { runIngest } from "../lib/ingest";
 import { isJobStatus } from "../lib/status";
+import { logError } from "../lib/log";
 import type { ComposeState } from "../lib/compose";
 
 /** Set a job's status and mirror it onto its application (shared by row + bulk). */
@@ -119,6 +120,7 @@ export async function composeResumeAction(input: {
     revalidatePath("/resumes");
     return { ok: true, resumeId: id, usedClaude, meta, data: resumeData, state, instructionsLog: log };
   } catch (err) {
+    logError("compose", err, { resumeId: input.resumeId });
     return { ok: false, error: (err as Error).message };
   }
 }
@@ -219,6 +221,7 @@ export async function searchJobsAction(input: {
     revalidatePath("/");
     return { ok: true, received, written };
   } catch (err) {
+    logError("search", err, { keywords, sources });
     return { ok: false, error: (err as Error).message };
   }
 }

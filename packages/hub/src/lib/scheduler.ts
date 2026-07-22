@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { logError } from "./log";
 
 const run = promisify(execFile);
 
@@ -49,6 +50,7 @@ export async function getSchedulerStatus(): Promise<SchedulerStatus> {
     const detail = out.split("\n").find((l) => l.includes(LABEL) && /\d/.test(l))?.trim();
     return { supported: true, on, label: LABEL, detail, logPath };
   } catch (err) {
+    logError("scheduler.status", err);
     return { supported: true, on: false, label: LABEL, logPath, error: (err as Error).message };
   }
 }
@@ -63,6 +65,7 @@ export async function controlScheduler(
     const output = await invoke(cmd);
     return { ok: true, output };
   } catch (err) {
+    logError("scheduler.control", err, { cmd });
     return { ok: false, error: (err as Error).message };
   }
 }

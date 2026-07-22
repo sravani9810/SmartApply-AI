@@ -1,5 +1,6 @@
 import type { MatchResult } from "@smartapply/shared";
 import { stripHtml } from "./tags";
+import { logWarn } from "./log";
 import type { RankedExperience } from "./rank";
 
 export interface TailorLLMResult {
@@ -121,7 +122,7 @@ export async function tailorWithClaude(
     if (!text.trim()) return null;
     return coerce(extractJson(text), validIds);
   } catch (err) {
-    console.warn("[tailor] Claude Agent SDK unavailable/failed, using deterministic fallback:", (err as Error).message);
+    logWarn("tailor", `Claude unavailable, using deterministic fallback: ${(err as Error).message}`);
     return null;
   }
 }
