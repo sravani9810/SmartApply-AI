@@ -170,6 +170,14 @@ export async function saveApplicantFields(formData: FormData) {
   revalidatePath("/profile");
 }
 
+/** Turn the OS (launchd) job-search scheduler on/off, or run it once now. */
+export async function controlSchedulerAction(cmd: "on" | "off" | "now") {
+  const { controlScheduler } = await import("../lib/scheduler");
+  const res = await controlScheduler(cmd);
+  revalidatePath("/scheduler");
+  return res;
+}
+
 /** Run the Part 1 pipeline and upsert jobs into the DB (dashboard button). */
 export async function refreshJobs() {
   await runIngest();
