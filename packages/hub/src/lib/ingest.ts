@@ -65,15 +65,20 @@ export function ingestPostings(postings: JobPosting[]): IngestResult {
 }
 
 /**
- * Run the Part 1 pipeline (all active boards + recruiter enrichment) and
- * upsert the results into the hub DB. Reuses @smartapply/job-search wholesale —
- * it still writes its Excel/Sheets export as a side effect.
+ * Run the Part 1 pipeline (active boards + recruiter enrichment) and upsert the
+ * results into the hub DB. Reuses @smartapply/job-search wholesale — it still
+ * writes its Excel/Sheets export as a side effect.
  *
  * @param queries Optional search overrides (keywords/location) from the hub UI.
  *   Omit to use the pipeline's env-configured searches.
+ * @param sources Optional list of platforms to search (e.g. ["indeed",
+ *   "linkedin"]) picked in the hub. Omit to use the env-gated defaults.
  */
-export async function runIngest(queries?: JobSearchQuery[]): Promise<IngestResult> {
+export async function runIngest(
+  queries?: JobSearchQuery[],
+  sources?: string[],
+): Promise<IngestResult> {
   const { runJobSearch } = await import("@smartapply/job-search");
-  const postings = await runJobSearch(queries);
+  const postings = await runJobSearch(queries, sources);
   return ingestPostings(postings);
 }

@@ -188,17 +188,19 @@ export interface SearchResult {
  * pipeline and import them into the hub. Powers the dashboard search box.
  */
 export async function searchJobsAction(input: {
-  keywords: string; location?: string; postedWithinDays?: number;
+  keywords: string; location?: string; postedWithinDays?: number; sources?: string[];
 }): Promise<SearchResult> {
   const keywords = input.keywords.split(",").map((k) => k.trim()).filter(Boolean);
   if (keywords.length === 0) return { ok: false, error: "Enter at least one keyword." };
+  const sources = (input.sources ?? []).filter(Boolean);
+  if (sources.length === 0) return { ok: false, error: "Pick at least one platform to search." };
   const query = {
     keywords,
     location: input.location?.trim() || undefined,
     postedWithinDays: input.postedWithinDays && input.postedWithinDays > 0 ? input.postedWithinDays : 7,
   };
   try {
-    const { received, written } = await runIngest([query]);
+    const { received, written } = await runIngest([query], sources);
     revalidatePath("/");
     return { ok: true, received, written };
   } catch (err) {

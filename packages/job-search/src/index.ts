@@ -12,6 +12,8 @@ loadEnv(); // cwd/.env, does not override already-set vars
 import type { JobPosting, JobSearchQuery } from "@smartapply/shared";
 import { getConfig } from "./config.js";
 import { getActiveBoards } from "./boards/index.js";
+
+export { SELECTABLE_SOURCES } from "./boards/index.js";
 import { enrichRecruiterContact } from "./recruiter/enrich.js";
 import { saveJobs } from "./excel/workbook.js";
 import { googleSheetsConfigFromEnv, syncToGoogleSheet } from "./sheets/gsheet.js";
@@ -26,13 +28,18 @@ import { googleSheetsConfigFromEnv, syncToGoogleSheet } from "./sheets/gsheet.js
  * @param overrideQueries When provided (e.g. a search triggered from the hub),
  *   these queries are used instead of the env-configured ones. The workbook /
  *   Sheets side-effects still run so the pipeline's outputs stay consistent.
+ * @param sources When provided (e.g. platforms picked in the hub), only these
+ *   boards run — overriding the env `*_ENABLED` flags. Omit for env defaults.
  */
-export async function runJobSearch(overrideQueries?: JobSearchQuery[]): Promise<JobPosting[]> {
+export async function runJobSearch(
+  overrideQueries?: JobSearchQuery[],
+  sources?: string[],
+): Promise<JobPosting[]> {
   const config = getConfig();
   const queries = overrideQueries?.length ? overrideQueries : config.queries;
   const collected: JobPosting[] = [];
 
-  for (const board of getActiveBoards()) {
+  for (const board of getActiveBoards(sources)) {
     for (const query of queries) {
       console.log(
         `[job-search] ${board.source}: "${query.keywords.join(", ")}" in ` +

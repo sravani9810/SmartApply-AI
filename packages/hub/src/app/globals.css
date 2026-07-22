@@ -141,6 +141,10 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .searchbox { margin-top: 12px; }
 .searchrow { display: flex; gap: 8px; flex-wrap: wrap; }
 .searchrow input.status { min-width: 120px; }
+.platforms { display: flex; align-items: center; gap: 14px; margin-top: 8px; font-size: 13px; }
+.platforms .muted { font-size: 12px; }
+.plat { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.plat input { width: 14px; height: 14px; }
 
 /* personal info page */
 .pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }

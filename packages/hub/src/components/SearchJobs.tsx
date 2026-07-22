@@ -8,13 +8,26 @@ import { searchJobsAction, type SearchResult } from "../db/actions";
  * Dashboard search box: scrape jobs for keywords + location via the Part 1
  * pipeline and import them into the hub, then refresh the table.
  */
+const PLATFORMS = [
+  { key: "indeed", label: "Indeed" },
+  { key: "linkedin", label: "LinkedIn" },
+] as const;
+
 export function SearchJobs() {
   const [keywords, setKeywords] = useState("");
   const [location, setLocation] = useState("");
   const [days, setDays] = useState("7");
+  const [sources, setSources] = useState<Set<string>>(new Set(PLATFORMS.map((p) => p.key)));
   const [result, setResult] = useState<SearchResult | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+
+  const toggleSource = (key: string) =>
+    setSources((s) => {
+      const n = new Set(s);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
 
   const run = () =>
     startTransition(async () => {
@@ -22,6 +35,7 @@ export function SearchJobs() {
         keywords,
         location,
         postedWithinDays: Number(days) || 7,
+        sources: [...sources],
       });
       setResult(r);
       if (r.ok) router.refresh();
@@ -49,9 +63,21 @@ export function SearchJobs() {
           onChange={(e) => setDays(e.target.value)}
           title="Posted within N days" disabled={pending}
         />
-        <button className="btn on" onClick={run} disabled={pending || !keywords.trim()}>
+        <button className="btn on" onClick={run} disabled={pending || !keywords.trim() || sources.size === 0}>
           {pending ? "Scraping…" : "🔍 Search & import"}
         </button>
+      </div>
+      <div className="platforms">
+        <span className="muted">Platforms:</span>
+        {PLATFORMS.map((p) => (
+          <label key={p.key} className="plat">
+            <input
+              type="checkbox" checked={sources.has(p.key)}
+              onChange={() => toggleSource(p.key)} disabled={pending}
+            />
+            {p.label}
+          </label>
+        ))}
       </div>
       {result ? (
         result.ok ? (
@@ -63,7 +89,8 @@ export function SearchJobs() {
         )
       ) : (
         <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-          Runs the Part 1 scraper for this search (Indeed when enabled) and imports the results.
+          Scrapes the selected platform(s) for this search and imports the results.
+          Each platform needs its one-time login (<code>npm run login:indeed</code> / <code>login:linkedin</code>).
         </p>
       )}
     </div>
