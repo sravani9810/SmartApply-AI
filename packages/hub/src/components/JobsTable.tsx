@@ -13,6 +13,17 @@ export interface JobRow {
   source: string;
   status: string;
   url: string;
+  datePosted: string | null;
+  capturedAt: string;
+}
+
+/** Short local date (e.g. "Jul 21"); "—" when missing/unparseable. */
+function fmtDate(v: string | null): string {
+  if (!v) return "—";
+  const d = new Date(v);
+  return Number.isNaN(d.getTime())
+    ? v
+    : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 export function JobsTable({ jobs }: { jobs: JobRow[] }) {
@@ -54,7 +65,8 @@ export function JobsTable({ jobs }: { jobs: JobRow[] }) {
             <th style={{ width: 28 }}>
               <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Select all" />
             </th>
-            <th>Title</th><th>Company</th><th>Location</th><th>Source</th><th>Status</th><th>Actions</th>
+            <th>Title</th><th>Company</th><th>Location</th><th>Source</th>
+            <th>Posted</th><th>Added</th><th>Status</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -67,6 +79,8 @@ export function JobsTable({ jobs }: { jobs: JobRow[] }) {
               <td>{j.company}</td>
               <td className="muted">{j.location ?? "—"}</td>
               <td><span className="pill">{j.source || "—"}</span></td>
+              <td className="muted" title={j.datePosted ?? ""}>{fmtDate(j.datePosted)}</td>
+              <td className="muted" title={j.capturedAt}>{fmtDate(j.capturedAt)}</td>
               <td><span className={`pill st-${j.status}`}>{j.status}</span></td>
               <td>
                 <div className="rowacts">

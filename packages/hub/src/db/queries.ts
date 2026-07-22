@@ -27,6 +27,8 @@ export function getJobs(limit = 50, status?: string) {
     source: s.jobs.source,
     status: s.jobs.status,
     url: s.jobs.url,
+    datePosted: s.jobs.datePosted,
+    capturedAt: s.jobs.capturedAt,
   };
   const q = db.select(cols).from(s.jobs);
   const rows = status
