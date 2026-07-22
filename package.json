@@ -11,6 +11,7 @@
     "typecheck": "tsc --build",
     "search": "npm run start --workspace @smartapply/job-search",
     "login:indeed": "npm run login:indeed --workspace @smartapply/job-search",
+    "login:linkedin": "npm run login:linkedin --workspace @smartapply/job-search",
     "import:indeed": "npm run import:indeed --workspace @smartapply/job-search",
     "schedule:on": "npm run schedule:on --workspace @smartapply/job-search",
     "schedule:off": "npm run schedule:off --workspace @smartapply/job-search",

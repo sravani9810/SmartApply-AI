@@ -1,6 +1,7 @@
 import type { JobBoardConnector } from "@smartapply/shared";
 import { exampleBoard } from "./example-board.js";
 import { indeedBrowserBoard } from "./indeed-browser.js";
+import { linkedinBrowserBoard } from "./linkedin-browser.js";
 
 /**
  * The active job-board connectors, chosen at call time.
@@ -17,7 +18,9 @@ import { indeedBrowserBoard } from "./indeed-browser.js";
  * JobBoardConnector and including them here.
  */
 export function getActiveBoards(): JobBoardConnector[] {
-  return process.env.INDEED_ENABLED === "true"
-    ? [indeedBrowserBoard]
-    : [exampleBoard];
+  const boards: JobBoardConnector[] = [];
+  if (process.env.INDEED_ENABLED === "true") boards.push(indeedBrowserBoard);
+  if (process.env.LINKEDIN_ENABLED === "true") boards.push(linkedinBrowserBoard);
+  // Fall back to the synthetic board so the pipeline runs with no login set up.
+  return boards.length ? boards : [exampleBoard];
 }
