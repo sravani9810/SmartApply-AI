@@ -17,13 +17,34 @@ export interface JobRow {
   capturedAt: string;
 }
 
-/** Short local date (e.g. "Jul 21"); "—" when missing/unparseable. */
-function fmtDate(v: string | null): string {
+/** Relative time (e.g. "2 mins ago", "1 day ago"); "—" when missing/unparseable. */
+function relTime(v: string | null): string {
   if (!v) return "—";
+  const t = new Date(v).getTime();
+  if (Number.isNaN(t)) return v;
+  const secs = Math.round((Date.now() - t) / 1000);
+  if (secs < 0) return "just now";
+  const units: [number, string][] = [
+    [60, "sec"], [60, "min"], [24, "hour"], [7, "day"], [4.34524, "week"],
+    [12, "month"], [Number.POSITIVE_INFINITY, "year"],
+  ];
+  let n = secs;
+  for (const [size, label] of units) {
+    if (n < size) {
+      const r = Math.floor(n);
+      if (label === "sec" && r < 5) return "just now";
+      return `${r} ${label}${r === 1 ? "" : "s"} ago`;
+    }
+    n /= size;
+  }
+  return v;
+}
+
+/** Full local date-time for the hover tooltip. */
+function fmtFull(v: string | null): string {
+  if (!v) return "";
   const d = new Date(v);
-  return Number.isNaN(d.getTime())
-    ? v
-    : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleString();
 }
 
 export function JobsTable({ jobs }: { jobs: JobRow[] }) {
@@ -79,8 +100,8 @@ export function JobsTable({ jobs }: { jobs: JobRow[] }) {
               <td>{j.company}</td>
               <td className="muted">{j.location ?? "—"}</td>
               <td><span className="pill">{j.source || "—"}</span></td>
-              <td className="muted" title={j.datePosted ?? ""}>{fmtDate(j.datePosted)}</td>
-              <td className="muted" title={j.capturedAt}>{fmtDate(j.capturedAt)}</td>
+              <td className="muted" title={fmtFull(j.datePosted)} suppressHydrationWarning>{relTime(j.datePosted)}</td>
+              <td className="muted" title={fmtFull(j.capturedAt)} suppressHydrationWarning>{relTime(j.capturedAt)}</td>
               <td><span className={`pill st-${j.status}`}>{j.status}</span></td>
               <td>
                 <div className="rowacts">
