@@ -21,6 +21,8 @@ export const COLUMNS: Array<{ header: string; key: keyof FlatRow; width: number 
   { header: "Fit Score", key: "fitScore", width: 10 },
   { header: "Captured At", key: "capturedAt", width: 22 },
   { header: "Last Seen At", key: "lastSeenAt", width: 22 },
+  // Appended last so existing index-based Sheets/CSV parsing stays aligned.
+  { header: "Description", key: "description", width: 60 },
 ];
 
 export interface FlatRow {
@@ -39,6 +41,7 @@ export interface FlatRow {
   fitScore: number | "";
   capturedAt: string;
   lastSeenAt: string;
+  description: string;
 }
 
 /** Header labels in column order. */
@@ -62,6 +65,7 @@ export function flatten(job: JobPosting): FlatRow {
     fitScore: job.fitScore ?? "",
     capturedAt: job.capturedAt, // first-seen (preserved on update)
     lastSeenAt: job.capturedAt, // this run's fetch time (refreshed each run)
+    description: job.description ?? "",
   };
 }
 
@@ -85,10 +89,14 @@ export function rowArrayToPartial(
 // Fields owned by the workflow/user (not the job board). On an existing row
 // these are kept as-is so hourly re-fetches never clobber them.
 const PRESERVE_ON_UPDATE: Array<keyof FlatRow> = ["status", "fitScore", "capturedAt"];
+// Kept from the existing row when a fresh fetch comes back empty — so a run that
+// couldn't load a recruiter contact or a job description doesn't erase one we
+// already captured.
 const RECRUITER_KEYS: Array<keyof FlatRow> = [
   "recruiterName",
   "recruiterEmail",
   "recruiterPhone",
+  "description",
 ];
 
 /**

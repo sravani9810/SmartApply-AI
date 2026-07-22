@@ -35,6 +35,7 @@
       <div id="jobTitle" class="muted">No jobs loaded.</div>
       <div id="jobMeta"></div>
       <div id="jobStatus"></div>
+      <div id="jobTailored" class="muted" style="margin-top:6px;"></div>
     </div>
     <!-- Manual pick when the current page can't be auto-matched -->
     <select id="jobPicker" hidden></select>
@@ -43,26 +44,46 @@
       <button id="markSkipped">Mark Skipped</button>
     </div>
     <div class="row">
-      <label style="flex:1; margin:0;">
-        Load jobs (jobs-export.json)
-        <input type="file" id="importJobs" accept="application/json,.json" />
-      </label>
+      <button id="addJob">➕ Add this job &amp; make résumé</button>
     </div>
     <div class="row">
-      <button id="exportStatus">Export status updates</button>
+      <button id="syncHub">↻ Sync jobs from Hub</button>
     </div>
+    <details style="margin-top:8px;">
+      <summary class="muted" style="cursor:pointer;">Advanced: hub URL &amp; file import</summary>
+      <label>Hub URL</label>
+      <input type="text" id="hubUrl" placeholder="http://localhost:3100" />
+      <div class="row">
+        <label style="flex:1; margin:0;">
+          Load jobs (jobs-export.json)
+          <input type="file" id="importJobs" accept="application/json,.json" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="exportStatus">Export status updates</button>
+      </div>
+    </details>
 
     <hr />
 
-    <h2>Autofill profile</h2>
+    <h2>Autofill</h2>
+    <div class="muted" style="margin-bottom:6px;">
+      Your personal info is managed in the Hub.
+      <a id="editProfile" href="#" target="_blank" rel="noreferrer">Edit personal info →</a>
+    </div>
+    <div id="profileInfo" class="muted" style="margin-bottom:6px;"></div>
+    <div class="row">
+      <button id="syncProfile">↻ Sync personal info from Hub</button>
+    </div>
     <label class="chk"><input type="checkbox" id="autofillOnOpen" /> Auto-fill when I open an application</label>
     <label class="chk"><input type="checkbox" id="learnToggle" /> Learn new answers as I fill forms</label>
     <div id="learnedInfo" class="muted" style="margin-bottom:6px;"></div>
-    <div id="profileFields"></div>
     <div class="row">
-      <button id="save">Save</button>
       <button id="fill">Fill</button>
       <button id="fillSubmit">Fill &amp; Submit</button>
+    </div>
+    <div class="row">
+      <button id="fillClaude">🤖 Fill unknowns with Claude</button>
     </div>
     <div class="row">
       <button id="clearLearned">Clear learned answers</button>

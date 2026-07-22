@@ -1,0 +1,86 @@
+import Link from "next/link";
+import { getStats, getJobs, getFlavors, getStatusCounts } from "../db/queries";
+import { refreshJobs } from "../db/actions";
+import { JOB_STATUSES } from "../lib/status";
+import { JobsTable } from "../components/JobsTable";
+
+// Read the DB on every request (local single-user app).
+export const dynamic = "force-dynamic";
+
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+  const { status } = await searchParams;
+  const stats = getStats();
+  const counts = getStatusCounts();
+  const jobs = getJobs(200, status);
+  const flavors = getFlavors();
+  const href = (s?: string) => (s ? `/?status=${s}` : "/");
+
+  const statCards: Array<[string, number]> = [
+    ["Jobs", stats.jobs],
+    ["Applications", stats.applications],
+    ["Experiences", stats.experiences],
+    ["Bullets", stats.bullets],
+    ["Skills", stats.skills],
+    ["Tags", stats.tags],
+    ["Flavors", stats.flavors],
+  ];
+
+  return (
+    <main className="wrap">
+      <h1>SmartApply Hub</h1>
+      <p className="sub">Local job-search hub — Part 0. Library seeded from your résumé; jobs from Part 1.</p>
+
+      <div className="stats">
+        {statCards.map(([label, n]) => (
+          <div className="stat" key={label}>
+            <div className="n">{n}</div>
+            <div className="l">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <h2>Résumé flavors</h2>
+      {flavors.length === 0 ? (
+        <p className="empty">No flavors yet — run <code>npm run db:seed</code>.</p>
+      ) : (
+        <div className="flavors">
+          {flavors.map((f) => (
+            <div className="flavor" key={f.id}>
+              <div className="name">{f.name}</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                {f.bulletCount} bullets selected
+              </div>
+              <div className="tags">
+                {(f.tags ?? []).map((t) => (
+                  <span className="pill" key={t}>{t}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <h2 style={{ marginBottom: 0 }}>Jobs ({jobs.length})</h2>
+        <form action={refreshJobs}>
+          <button className="btn" type="submit">↻ Refresh from Part 1</button>
+        </form>
+      </div>
+      <div className="filterbar">
+        <Link href={href()} className={`chip${!status ? " on" : ""}`}>All <b>{stats.jobs}</b></Link>
+        {JOB_STATUSES.map((st) => (
+          <Link key={st} href={href(st)} className={`chip${status === st ? " on" : ""}`}>
+            {st} <b>{counts[st] ?? 0}</b>
+          </Link>
+        ))}
+      </div>
+      <div className="panel" style={{ marginTop: 12 }}>
+        {jobs.length === 0 ? (
+          <p className="empty">No jobs yet — run the Part 1 pipeline, then <code>npm run db:seed</code>.</p>
+        ) : (
+          <JobsTable jobs={jobs} />
+        )}
+      </div>
+    </main>
+  );
+}

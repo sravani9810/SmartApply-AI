@@ -7,6 +7,89 @@
 
 const JOBS_KEY = "jobs";
 const STATUS_KEY = "statuses";
+const HUB_KEY = "hubUrl";
+const DEFAULT_HUB = "http://localhost:3100";
+
+/** The SmartApply Hub base URL (Part 0), overridable in the popup. */
+export async function getHubUrl() {
+  const { [HUB_KEY]: url } = await chrome.storage.local.get(HUB_KEY);
+  return (url || DEFAULT_HUB).replace(/\/+$/, "");
+}
+export async function setHubUrl(url) {
+  await chrome.storage.local.set({ [HUB_KEY]: url });
+}
+
+/**
+ * Pull the applicant's personal info from the hub (the source of truth) and
+ * cache it where the filler reads it: profile fields in storage.sync.profile,
+ * learned answers in storage.local.learned.
+ */
+export async function syncProfileFromHub() {
+  const base = await getHubUrl();
+  const res = await fetch(`${base}/api/profile`);
+  if (!res.ok) throw new Error(`Hub returned ${res.status} (is it running at ${base}?)`);
+  const { fields = {}, learned = {} } = await res.json();
+  await chrome.storage.sync.set({ profile: fields });
+  await chrome.storage.local.set({ learned });
+  return {
+    fieldCount: Object.values(fields).filter(Boolean).length,
+    learnedCount: Object.keys(learned).length,
+  };
+}
+
+/** Push a learned answer back to the hub (best-effort). */
+export async function postLearned(label, value) {
+  const base = await getHubUrl();
+  try {
+    await fetch(`${base}/api/learned`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label, value }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Pull jobs live from the hub (replaces the manual jobs-export.json load). */
+export async function syncFromHub() {
+  const base = await getHubUrl();
+  const res = await fetch(`${base}/api/jobs`);
+  if (!res.ok) throw new Error(`Hub returned ${res.status} (is it running at ${base}?)`);
+  const data = await res.json();
+  const jobs = Array.isArray(data) ? data : data.jobs;
+  if (!Array.isArray(jobs)) throw new Error("Unexpected /api/jobs response.");
+  await chrome.storage.local.set({ [JOBS_KEY]: jobs });
+  return jobs.length;
+}
+
+/** Write a status change back to the hub (best-effort). */
+export async function postStatusToHub(id, status) {
+  const base = await getHubUrl();
+  try {
+    await fetch(`${base}/api/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Fetch per-job tailoring context (flavor, fit, PDF url) from the hub. */
+export async function getApplicationContext(jobId) {
+  const base = await getHubUrl();
+  try {
+    const res = await fetch(`${base}/api/application/${encodeURIComponent(jobId)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 /** Load the imported jobs (JobExportEntry[]). */
 export async function loadJobs() {

@@ -22,6 +22,12 @@ const context = await chromium.launchPersistentContext(profileDir, {
   headless: false,
   channel: "chrome",
   viewport: { width: 1280, height: 900 },
+  // Keep Chrome's sandbox on so it doesn't launch with --no-sandbox (which
+  // triggers Chrome's "unsupported command-line flag" warning bar).
+  chromiumSandbox: true,
+  // Match the connector's stealth launch: hide navigator.webdriver so
+  // Cloudflare's managed challenge auto-clears instead of hard-blocking login.
+  args: ["--disable-blink-features=AutomationControlled"],
 });
 
 const page = context.pages()[0] ?? (await context.newPage());

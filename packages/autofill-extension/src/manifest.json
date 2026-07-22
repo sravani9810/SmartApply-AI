@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Auto-fills job application forms with your saved profile.",
   "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "host_permissions": ["http://localhost:3100/*", "http://127.0.0.1:3100/*"],
   "action": {
     "default_title": "SmartApply Autofill",
     "default_popup": "popup.html"

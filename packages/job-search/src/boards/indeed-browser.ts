@@ -40,12 +40,52 @@ function headless(): boolean {
   return process.env.INDEED_HEADLESS === "true";
 }
 
+/**
+ * Whether to open each posting and capture its full description. On by default;
+ * set INDEED_FETCH_DESCRIPTIONS=false to skip (faster, list-only). Cap how many
+ * postings get a description with INDEED_MAX_DESCRIPTIONS (default: all).
+ */
+function fetchDescriptions(): boolean {
+  return process.env.INDEED_FETCH_DESCRIPTIONS !== "false";
+}
+function maxDescriptions(): number {
+  const n = Number(process.env.INDEED_MAX_DESCRIPTIONS);
+  return Number.isFinite(n) && n > 0 ? n : Infinity;
+}
+
 function buildSearchUrl(q: JobSearchQuery): string {
   const params = new URLSearchParams();
   params.set("q", q.keywords.join(" "));
   if (q.location) params.set("l", q.location);
   if (q.postedWithinDays) params.set("fromage", String(q.postedWithinDays));
   return `https://www.indeed.com/jobs?${params.toString()}`;
+}
+
+/**
+ * Open a single posting and return its full description text, or undefined if
+ * the page never rendered the description (challenge, removed job, timeout).
+ * Reuses the passed-in (logged-in) page so cookies/session carry over.
+ */
+async function fetchDescription(
+  page: import("playwright").Page,
+  url: string,
+): Promise<string | undefined> {
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    // The JD lives in #jobDescriptionText. Poll briefly in case Cloudflare shows
+    // a transient challenge before the real page renders.
+    for (let i = 0; i < 12; i++) {
+      const text = await page.evaluate(() => {
+        const el = document.querySelector<HTMLElement>("#jobDescriptionText");
+        return el?.innerText?.trim() ?? "";
+      });
+      if (text) return text.replace(/\n{3,}/g, "\n\n"); // collapse big gaps
+      await page.waitForTimeout(750);
+    }
+  } catch {
+    // fall through — a missing description shouldn't fail the whole run
+  }
+  return undefined;
 }
 
 export const indeedBrowserBoard: JobBoardConnector = {
@@ -127,7 +167,7 @@ export const indeedBrowserBoard: JobBoardConnector = {
       })) as RawJob[];
 
       const now = new Date().toISOString();
-      return raw
+      const postings = raw
         .filter((j) => j.company) // drop Indeed's promo carousel cards (no company)
         .map((j): JobPosting => {
           const url = `https://www.indeed.com/viewjob?jk=${j.jk}`;
@@ -145,6 +185,25 @@ export const indeedBrowserBoard: JobBoardConnector = {
             capturedAt: now,
           };
         });
+
+      // Enrich with full descriptions by opening each posting (sequential so we
+      // don't trip Cloudflare's rate limiting). Best-effort — failures leave the
+      // posting without a description rather than aborting the run.
+      if (fetchDescriptions()) {
+        const limit = maxDescriptions();
+        let done = 0;
+        for (const posting of postings) {
+          if (done >= limit) break;
+          posting.description = await fetchDescription(page, posting.url);
+          done++;
+        }
+        const withDesc = postings.filter((p) => p.description).length;
+        console.log(
+          `[job-search] indeed: captured ${withDesc}/${Math.min(limit, postings.length)} description(s)`,
+        );
+      }
+
+      return postings;
     } finally {
       await context.close();
     }

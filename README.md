@@ -1,6 +1,6 @@
 # SmartApply-AI
 
-An automated, **local-first** job-search pipeline, organized into three parts:
+An automated, **local-first** job-search pipeline, organized into four parts:
 
 1. **Job Search (Part 1)** — discovers job postings and logs each one to a
    structured Excel workbook (and, optionally, Google Sheets), on an hourly
@@ -10,6 +10,8 @@ An automated, **local-first** job-search pipeline, organized into three parts:
    profile, and learns answers to unknown fields.
 3. **Resume Matcher (Part 3)** — scores/tailors a resume against a job
    description. *(In progress on its own branch.)*
+4. **Resume Builder (Part 4)** — a Next.js app that turns a `ResumeData` JSON
+   into a formatted, downloadable PDF résumé, with an in-browser editor.
 
 Everything runs on your own machine. Nothing leaves your computer except the
 **optional** Google Sheets sync you explicitly configure.
@@ -22,6 +24,7 @@ packages/
   job-search/          # Part 1 — discovery + Excel/Sheets logging + scheduler
   autofill-extension/  # Part 2 — Chrome MV3 extension
   resume-matcher/      # Part 3 — resume ↔ JD matching
+  resume-builder/      # Part 4 — Next.js résumé/CV → PDF builder + editor
 data/                  # generated workbooks
 ```
 
@@ -63,6 +66,31 @@ native `<select>` fields, and **learns** answers to unknown fields locally.
 See [`packages/autofill-extension`](packages/autofill-extension) for the full
 flow (job context, status tracking, autofill, learning, and the pipeline
 contract).
+
+## Part 4 — Resume Builder
+
+A Next.js app that renders a résumé from a `ResumeData` JSON structure
+(`personal` / `work_experience` / `education` / `skillset`) and exports it to a
+formatted PDF. It has an in-browser editor (`/editResume`) for building and
+tweaking that JSON, with import/export.
+
+```bash
+npm install
+npx puppeteer browsers install chrome   # one-time: fetch the headless Chrome used for local PDF export
+npm run resume:dev                       # http://localhost:3000  (editor at /editResume)
+```
+
+PDF generation has two modes, in [`pages/api/cv.ts`](packages/resume-builder/pages/api/cv.ts):
+
+- **Local / dev** — renders via **puppeteer** (the Chrome you installed above). No
+  API key, nothing leaves your machine.
+- **Production** — uses the **PDFShift** API (needs an account + API key, set in
+  the editor UI). Only relevant if you deploy the builder as a serverless app;
+  for local-first use, stick to dev mode.
+
+This complements Part 3: the matcher produces a tailored `ResumeData`, and the
+builder turns it into the PDF you actually submit. See
+[`packages/resume-builder`](packages/resume-builder) for details.
 
 ## How Parts 1 and 2 connect
 

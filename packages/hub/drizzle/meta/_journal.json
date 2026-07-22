@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1784637021469,
+      "tag": "0000_powerful_power_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784644662465,
+      "tag": "0001_harsh_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784665937251,
+      "tag": "0002_loose_pandemic",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784671608055,
+      "tag": "0003_careless_agent_zero",
+      "breakpoints": true
+    }
+  ]
+}

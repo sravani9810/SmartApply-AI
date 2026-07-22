@@ -2,7 +2,7 @@
   "name": "smartapply-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Automated job-search pipeline, organized into three parts: job discovery, autofill extension, and resume matching.",
+  "description": "Automated job-search pipeline: job discovery, autofill extension, resume matching, and resume building.",
   "workspaces": [
     "packages/*"
   ],
@@ -15,7 +15,10 @@
     "schedule:on": "npm run schedule:on --workspace @smartapply/job-search",
     "schedule:off": "npm run schedule:off --workspace @smartapply/job-search",
     "schedule:now": "npm run schedule:now --workspace @smartapply/job-search",
-    "schedule:status": "npm run schedule:status --workspace @smartapply/job-search"
+    "schedule:status": "npm run schedule:status --workspace @smartapply/job-search",
+    "resume:dev": "npm run dev --workspace @smartapply/resume-builder",
+    "resume:build": "npm run build --workspace @smartapply/resume-builder",
+    "resume:start": "npm run start --workspace @smartapply/resume-builder"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
