@@ -176,6 +176,36 @@ export async function refreshJobs() {
   revalidatePath("/");
 }
 
+export interface SearchResult {
+  ok: boolean;
+  error?: string;
+  received?: number;
+  written?: number;
+}
+
+/**
+ * Scrape jobs for a specific search (keywords + location) via the Part 1
+ * pipeline and import them into the hub. Powers the dashboard search box.
+ */
+export async function searchJobsAction(input: {
+  keywords: string; location?: string; postedWithinDays?: number;
+}): Promise<SearchResult> {
+  const keywords = input.keywords.split(",").map((k) => k.trim()).filter(Boolean);
+  if (keywords.length === 0) return { ok: false, error: "Enter at least one keyword." };
+  const query = {
+    keywords,
+    location: input.location?.trim() || undefined,
+    postedWithinDays: input.postedWithinDays && input.postedWithinDays > 0 ? input.postedWithinDays : 7,
+  };
+  try {
+    const { received, written } = await runIngest([query]);
+    revalidatePath("/");
+    return { ok: true, received, written };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
 /** Tailor a résumé for a job with the chosen flavor (Claude on subscription). */
 export async function tailorJob(jobId: string, formData: FormData) {
   const flavorId = String(formData.get("flavorId") ?? "");

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { JobPosting } from "@smartapply/shared";
+import type { JobPosting, JobSearchQuery } from "@smartapply/shared";
 import { db } from "../db/client";
 import * as s from "../db/schema";
 
@@ -68,9 +68,12 @@ export function ingestPostings(postings: JobPosting[]): IngestResult {
  * Run the Part 1 pipeline (all active boards + recruiter enrichment) and
  * upsert the results into the hub DB. Reuses @smartapply/job-search wholesale —
  * it still writes its Excel/Sheets export as a side effect.
+ *
+ * @param queries Optional search overrides (keywords/location) from the hub UI.
+ *   Omit to use the pipeline's env-configured searches.
  */
-export async function runIngest(): Promise<IngestResult> {
+export async function runIngest(queries?: JobSearchQuery[]): Promise<IngestResult> {
   const { runJobSearch } = await import("@smartapply/job-search");
-  const postings = await runJobSearch();
+  const postings = await runJobSearch(queries);
   return ingestPostings(postings);
 }

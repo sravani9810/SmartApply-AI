@@ -3,6 +3,7 @@ import { getStats, getJobs, getFlavors, getStatusCounts } from "../db/queries";
 import { refreshJobs } from "../db/actions";
 import { JOB_STATUSES } from "../lib/status";
 import { JobsTable } from "../components/JobsTable";
+import { SearchJobs } from "../components/SearchJobs";
 
 // Read the DB on every request (local single-user app).
 export const dynamic = "force-dynamic";
@@ -66,6 +67,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <button className="btn" type="submit">↻ Refresh from Part 1</button>
         </form>
       </div>
+      <SearchJobs />
       <div className="filterbar">
         <Link href={href()} className={`chip${!status ? " on" : ""}`}>All <b>{stats.jobs}</b></Link>
         {JOB_STATUSES.map((st) => (
