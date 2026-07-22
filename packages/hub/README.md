@@ -13,10 +13,21 @@ Next.js 15 (App Router) + SQLite (Drizzle). Local-first — the DB lives at
 npm install                       # from the repo root
 npm run db:migrate -w @smartapply/hub   # create the schema
 npm run db:seed    -w @smartapply/hub   # seed library from cv_data.ts + import jobs.xlsx
-npm run dev        -w @smartapply/hub   # → http://localhost:3100
+npm run hub                             # from the repo root — starts EVERYTHING
 ```
 
-Pages: `/` dashboard · `/library` curate · `/jobs/[id]` detail · `/applications`.
+`npm run hub` (root script) runs the **hub** (→ http://localhost:3100) **and** the
+Part 4 **resume-builder** (→ http://localhost:3000) together, so PDF export works
+without a second terminal. Ctrl+C stops both. Variants:
+
+- `npm run hub:dev` — just the hub (use when the resume-builder is already up).
+- `npm run resume:dev` — just the resume-builder.
+
+The hub reaches the builder at `http://localhost:3000` by default; override with
+`RESUME_BUILDER_URL` if you run it elsewhere.
+
+Pages: `/` dashboard · `/library` curate · `/build` compose · `/resumes` library ·
+`/profile` personal info · `/jobs/[id]` detail · `/applications`.
 
 ## Job ingest (Phase 3)
 
