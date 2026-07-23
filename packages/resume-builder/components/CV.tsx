@@ -1,3 +1,4 @@
+import React, { createContext, useContext } from 'react';
 import { ResumeData, SkillSetCategory, WorkExperience } from '../types/cv_types';
 
 // Theme colors kept as inline styles (not Tailwind classes) so they render
@@ -6,6 +7,65 @@ import { ResumeData, SkillSetCategory, WorkExperience } from '../types/cv_types'
 const NAVY = '#2f5496';
 const RULE = '#8aa1c9';
 const MUTED = '#6b7280';
+
+// ---------------------------------------------------------------------------
+// Inline editing
+//
+// CV1 can render in a read-only mode (the default — used for the PDF export and
+// static previews) or an "editable" mode where text is edited in-place directly
+// on the rendered résumé. Editable mode is opt-in via the `editable` prop and a
+// `onFieldEdit(path, value)` callback; the path locates the edited field inside
+// ResumeData (e.g. ['work_experience', 0, 'description', 2]) so the parent can
+// immutably update its state. When `editable` is false nothing below changes,
+// keeping the PDF output byte-for-byte identical.
+// ---------------------------------------------------------------------------
+export type EditPath = (string | number)[];
+type EditContextValue = {
+  editable: boolean;
+  onFieldEdit?: (path: EditPath, value: string) => void;
+};
+const EditContext = createContext<EditContextValue>({ editable: false });
+
+/**
+ * A text node that becomes contentEditable in editable mode and reports its new
+ * value (by `path`) on blur. `plain` fields report textContent (no markup);
+ * rich fields report innerHTML so inline <b> (Ctrl/Cmd+B) survives.
+ */
+const Editable = ({
+  path,
+  value,
+  plain,
+  as: Tag = 'span' as any,
+  className,
+  style,
+}: {
+  path: EditPath;
+  value: string;
+  plain?: boolean;
+  as?: any;
+  className?: string;
+  style?: React.CSSProperties;
+}): JSX.Element => {
+  const { editable, onFieldEdit } = useContext(EditContext);
+  if (!editable) {
+    return <Tag className={className} style={style} dangerouslySetInnerHTML={{ __html: value }} />;
+  }
+  const editClass = `${className ? `${className} ` : ''}editable-field`;
+  return (
+    <Tag
+      className={editClass}
+      style={style}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck={false}
+      onBlur={(e: React.FocusEvent<HTMLElement>) => {
+        const next = plain ? e.currentTarget.textContent || '' : e.currentTarget.innerHTML;
+        if (next !== value) onFieldEdit?.(path, next);
+      }}
+      dangerouslySetInnerHTML={{ __html: value }}
+    />
+  );
+};
 
 /** Small inline icons (13px) — self-contained so contact-row sizing is stable in the PDF. */
 const Icon = ({ children }: { children: React.ReactNode }): JSX.Element => (
@@ -65,13 +125,17 @@ const SectionHeading = ({ title }: { title: string }): JSX.Element => (
   </div>
 );
 
-/** Blue-dot bullet list; each item may contain inline <b> markup. */
-const Bullets = ({ items }: { items: string[] }): JSX.Element => (
+/** Blue-dot bullet list; each item may contain inline <b> markup and is editable. */
+const Bullets = ({ items, basePath }: { items: string[]; basePath?: EditPath }): JSX.Element => (
   <ul style={{ marginTop: '4px' }} className="space-y-1">
     {items.map((item, i) => (
       <li key={i} className="flex" style={{ lineHeight: 1.35 }}>
         <span style={{ color: NAVY, marginRight: '8px', flex: 'none' }}>•</span>
-        <span style={{ flex: 1 }} dangerouslySetInnerHTML={{ __html: item }} />
+        <Editable
+          path={basePath ? [...basePath, i] : []}
+          value={item}
+          style={{ flex: 1 }}
+        />
       </li>
     ))}
   </ul>
@@ -79,7 +143,9 @@ const Bullets = ({ items }: { items: string[] }): JSX.Element => (
 
 /**
  * One experience / project / education entry header: role at the left, the org
- * name centered (as a link), and location + dates at the right.
+ * name centered (as a link, or an editable span in edit mode), and location +
+ * dates at the right. `basePath` points at the entry object so role/org/location
+ * become editable.
  */
 const EntryHeader = (props: {
   role: string;
@@ -88,39 +154,57 @@ const EntryHeader = (props: {
   location?: string;
   start?: string;
   end?: string;
+  basePath?: EditPath;
+  roleKey?: string;
+  orgKey?: string;
 }): JSX.Element => {
-  const { role, org, url, location, start, end } = props;
+  const { role, org, url, location, start, end, basePath, roleKey = 'position', orgKey = 'company' } = props;
+  const { editable } = useContext(EditContext);
   const dates = [start, end].filter(Boolean).join(' - ');
+  const orgStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    color: NAVY,
+    whiteSpace: 'nowrap',
+  };
   return (
     <div className="relative flex justify-between items-baseline" style={{ marginTop: '10px' }}>
-      <span className="font-bold" style={{ fontSize: '13.5px' }}>{role}</span>
-      {url ? (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-semibold underline"
-          style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', color: NAVY, whiteSpace: 'nowrap' }}
-        >
+      <Editable
+        path={basePath ? [...basePath, roleKey] : []}
+        value={role}
+        plain
+        className="font-bold"
+        style={{ fontSize: '13.5px' }}
+      />
+      {editable ? (
+        <Editable path={basePath ? [...basePath, orgKey] : []} value={org} plain className="font-semibold" style={orgStyle} />
+      ) : url ? (
+        <a href={url} target="_blank" rel="noopener noreferrer" className="font-semibold underline" style={orgStyle}>
           {org}
         </a>
       ) : (
-        <span
-          className="font-semibold"
-          style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', color: NAVY, whiteSpace: 'nowrap' }}
-        >
+        <span className="font-semibold" style={orgStyle}>
           {org}
         </span>
       )}
       <span style={{ whiteSpace: 'nowrap' }}>
-        {location ? <span className="italic" style={{ color: MUTED, marginRight: '12px' }}>{location}</span> : null}
+        {location ? (
+          <Editable
+            path={basePath ? [...basePath, 'location'] : []}
+            value={location}
+            plain
+            className="italic"
+            style={{ color: MUTED, marginRight: '12px' }}
+          />
+        ) : null}
         {dates ? <span className="font-bold">{dates}</span> : null}
       </span>
     </div>
   );
 };
 
-const Entry = (exp: WorkExperience): JSX.Element => (
+const Entry = (exp: WorkExperience & { basePath?: EditPath }): JSX.Element => (
   <div style={{ marginBottom: '6px' }}>
     <EntryHeader
       role={exp.position}
@@ -129,8 +213,9 @@ const Entry = (exp: WorkExperience): JSX.Element => (
       location={exp.location}
       start={exp.start}
       end={exp.end}
+      basePath={exp.basePath}
     />
-    <Bullets items={exp.description} />
+    <Bullets items={exp.description} basePath={exp.basePath ? [...exp.basePath, 'description'] : undefined} />
   </div>
 );
 
@@ -152,7 +237,9 @@ const SkillSetComp = ({ skillset }: { skillset: SkillSetCategory[] }): JSX.Eleme
   </>
 );
 
-export const CV1 = (data: ResumeData): JSX.Element => {
+export const CV1 = (
+  data: ResumeData & { editable?: boolean; onFieldEdit?: (path: EditPath, value: string) => void },
+): JSX.Element => {
   const p = data.personal;
   const contactItems: JSX.Element[] = [];
   if (p.linkedin?.link)
@@ -187,93 +274,106 @@ export const CV1 = (data: ResumeData): JSX.Element => {
     );
 
   return (
-    <div id="resume" style={{ fontFamily: 'Lato, Helvetica, Arial, sans-serif', fontSize: '12px', color: '#1f2937', lineHeight: 1.35 }}>
-      {/* Header */}
-      <div id="intro">
-        <h1
-          className="text-center"
-          style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontVariant: 'small-caps', fontSize: '30px', letterSpacing: '1px', margin: 0 }}
-        >
-          {p.name}
-        </h1>
-        <div className="flex flex-wrap justify-center items-center" style={{ gap: '8px', marginTop: '4px' }}>
-          {contactItems.map((item, i) => (
-            <span key={i} className="inline-flex items-center" style={{ gap: '8px' }}>
-              {item}
-              {i < contactItems.length - 1 ? <span style={{ color: MUTED }}>|</span> : null}
-            </span>
-          ))}
+    <EditContext.Provider value={{ editable: !!data.editable, onFieldEdit: data.onFieldEdit }}>
+      <div id="resume" style={{ fontFamily: 'Lato, Helvetica, Arial, sans-serif', fontSize: '12px', color: '#1f2937', lineHeight: 1.35 }}>
+        {/* Header */}
+        <div id="intro">
+          <Editable
+            as="h1"
+            path={['personal', 'name']}
+            value={p.name}
+            plain
+            className="text-center"
+            style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontVariant: 'small-caps', fontSize: '30px', letterSpacing: '1px', margin: 0 }}
+          />
+          <div className="flex flex-wrap justify-center items-center" style={{ gap: '8px', marginTop: '4px' }}>
+            {contactItems.map((item, i) => (
+              <span key={i} className="inline-flex items-center" style={{ gap: '8px' }}>
+                {item}
+                {i < contactItems.length - 1 ? <span style={{ color: MUTED }}>|</span> : null}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Summary */}
-      {data.summary?.length ? (
-        <div id="summary">
-          <SectionHeading title="Summary" />
-          {data.summary.map((para, i) => (
-            <p key={i} style={{ marginTop: i === 0 ? '4px' : '8px', lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: para }} />
-          ))}
-        </div>
-      ) : null}
-
-      {/* Skills */}
-      {(data.skills?.length || p.skillset?.length) ? (
-        <div id="skills">
-          <SectionHeading title="Skills" />
-          <ul style={{ marginTop: '4px' }} className="space-y-1">
-            {data.skills?.length ? (
-              data.skills.map((line, i) => (
-                <li key={i} className="flex" style={{ lineHeight: 1.35 }}>
-                  <span style={{ color: NAVY, marginRight: '8px', flex: 'none' }}>•</span>
-                  <span style={{ flex: 1 }} dangerouslySetInnerHTML={{ __html: line }} />
-                </li>
-              ))
-            ) : (
-              <SkillSetComp skillset={p.skillset} />
-            )}
-          </ul>
-        </div>
-      ) : null}
-
-      {/* Personal Project */}
-      {data.projects?.length ? (
-        <div id="projects">
-          <SectionHeading title="Personal Project" />
-          {data.projects.map((proj, i) => (
-            <Entry key={i} {...proj} />
-          ))}
-        </div>
-      ) : null}
-
-      {/* Experience */}
-      {data.work_experience?.length ? (
-        <div id="experience">
-          <SectionHeading title="Experience" />
-          {data.work_experience.map((exp, i) => (
-            <Entry key={i} {...exp} />
-          ))}
-        </div>
-      ) : null}
-
-      {/* Education */}
-      {data.education?.length ? (
-        <div id="education">
-          <SectionHeading title="Education" />
-          {data.education.map((ed, i) => (
-            <div key={i} style={{ marginBottom: '6px' }}>
-              <EntryHeader
-                role={ed.degree}
-                org={ed.university}
-                url={ed.url}
-                location={ed.location}
-                start={ed.start}
-                end={ed.end}
+        {/* Summary */}
+        {data.summary?.length ? (
+          <div id="summary">
+            <SectionHeading title="Summary" />
+            {data.summary.map((para, i) => (
+              <Editable
+                key={i}
+                as="p"
+                path={['summary', i]}
+                value={para}
+                style={{ marginTop: i === 0 ? '4px' : '8px', lineHeight: 1.4 }}
               />
-              {ed.description?.length ? <Bullets items={ed.description} /> : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
+            ))}
+          </div>
+        ) : null}
+
+        {/* Skills */}
+        {data.skills?.length || p.skillset?.length ? (
+          <div id="skills">
+            <SectionHeading title="Skills" />
+            <ul style={{ marginTop: '4px' }} className="space-y-1">
+              {data.skills?.length ? (
+                data.skills.map((line, i) => (
+                  <li key={i} className="flex" style={{ lineHeight: 1.35 }}>
+                    <span style={{ color: NAVY, marginRight: '8px', flex: 'none' }}>•</span>
+                    <Editable path={['skills', i]} value={line} style={{ flex: 1 }} />
+                  </li>
+                ))
+              ) : (
+                <SkillSetComp skillset={p.skillset} />
+              )}
+            </ul>
+          </div>
+        ) : null}
+
+        {/* Personal Project */}
+        {data.projects?.length ? (
+          <div id="projects">
+            <SectionHeading title="Personal Project" />
+            {data.projects.map((proj, i) => (
+              <Entry key={i} {...proj} basePath={['projects', i]} />
+            ))}
+          </div>
+        ) : null}
+
+        {/* Experience */}
+        {data.work_experience?.length ? (
+          <div id="experience">
+            <SectionHeading title="Experience" />
+            {data.work_experience.map((exp, i) => (
+              <Entry key={i} {...exp} basePath={['work_experience', i]} />
+            ))}
+          </div>
+        ) : null}
+
+        {/* Education */}
+        {data.education?.length ? (
+          <div id="education">
+            <SectionHeading title="Education" />
+            {data.education.map((ed, i) => (
+              <div key={i} style={{ marginBottom: '6px' }}>
+                <EntryHeader
+                  role={ed.degree}
+                  org={ed.university}
+                  url={ed.url}
+                  location={ed.location}
+                  start={ed.start}
+                  end={ed.end}
+                  basePath={['education', i]}
+                  roleKey="degree"
+                  orgKey="university"
+                />
+                {ed.description?.length ? <Bullets items={ed.description} basePath={['education', i, 'description']} /> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </EditContext.Provider>
   );
 };

@@ -1,13 +1,8 @@
 import type { NextPage } from 'next';
-import EditResume from './editResume';
+import Library from './library';
 
-const Home: NextPage = () => {
-  return (
-    <div>
-      {/* <CV1 {...data}/> */}
-      <EditResume />
-    </div>
-  );
-};
+// The résumé library is the landing page: browse saved résumés + templates,
+// then open one to edit it in place at /editResume.
+const Home: NextPage = () => <Library />;
 
 export default Home;

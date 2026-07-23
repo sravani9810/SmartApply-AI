@@ -18,3 +18,22 @@ a {
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Inline-editable résumé fields (editable mode in the live editor only). */
+.editable-field {
+  border-radius: 3px;
+  outline: none;
+  cursor: text;
+  transition: background-color 0.12s ease, box-shadow 0.12s ease;
+}
+.editable-field:hover {
+  background-color: rgba(250, 204, 21, 0.18); /* subtle amber wash */
+}
+.editable-field:focus {
+  background-color: rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.55);
+}
+.editable-field:empty::before {
+  content: 'Click to edit…';
+  color: #9ca3af;
+}

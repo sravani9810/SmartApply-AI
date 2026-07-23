@@ -1,13 +1,16 @@
 import type { NextPage } from 'next';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import React, { useCallback, useMemo, useState, useRef, useEffect, useContext } from 'react';
 import { PersonalData, ResumeData, WorkExperience, Education } from '../types/cv_types';
-import { CV1 } from '../components/CV';
+import { CV1, EditPath } from '../components/CV';
 import DescriptionTextBox from '../components/DescriptionTextBox';
 import { PdfShiftApiKey } from '../constants/keys';
 import Modal from '../components/modal';
 import { ToastContext } from '../contexts/ToastContext';
 import { ToastType } from '../types/ToastType';
 import { EmptyData, data } from '../data/cv_data';
+import { templateMap } from '../data/variants';
 
 
 const EditResume: NextPage = () => {
@@ -15,6 +18,14 @@ const EditResume: NextPage = () => {
   // const env = "production";
   const {addToast} = useContext(ToastContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  // Identity of the résumé currently open in the editor. `currentId` is the
+  // saved-library id (null when the résumé hasn't been saved yet); `title` is
+  // its display name in the library.
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [title, setTitle] = useState<string>('');
+  const [saving, setSaving] = useState(false);
 
   const [newSkillset, setNewSkillset] = useState({
       type: '',
@@ -128,6 +139,98 @@ const EditResume: NextPage = () => {
     console.log('Setting Resume Data');
     setResumeData({...loadingResumeData});
   }, [setResumeData]);
+
+  // Load the résumé named by the URL once the router is ready:
+  //   ?id=<slug>       → open a saved résumé from the file library
+  //   ?template=<slug> → start from a built-in template (Product / Engineering)
+  //   ?new=1           → start from a blank résumé
+  //   (none)           → fall back to the current app default
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { id, template, new: isNew } = router.query;
+    if (typeof id === 'string') {
+      fetch(`/api/resumes/${encodeURIComponent(id)}`)
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Résumé not found'))))
+        .then((saved) => {
+          setResumeData({ ...saved.data });
+          setCurrentId(saved.id);
+          setTitle(saved.title || '');
+        })
+        .catch(() => addToast('Could not load that résumé.', ToastType.ERROR));
+      return;
+    }
+    if (typeof template === 'string' && templateMap[template]) {
+      const t = templateMap[template];
+      setResumeData({ ...t.data });
+      setCurrentId(null);
+      setTitle(t.title);
+      return;
+    }
+    if (isNew) {
+      setResumeData({ ...EmptyData });
+      setCurrentId(null);
+      setTitle('');
+      return;
+    }
+    setResumeData({ ...data });
+    setTitle(data.personal.name || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.query]);
+
+  // Commit an in-place edit made on the rendered résumé. `path` locates the
+  // field inside ResumeData (e.g. ['work_experience', 0, 'description', 2]).
+  const applyFieldEdit = useCallback((path: EditPath, value: string) => {
+    setResumeData((prev) => {
+      const next: any = JSON.parse(JSON.stringify(prev));
+      let node: any = next;
+      for (let i = 0; i < path.length - 1; i += 1) node = node[path[i]];
+      node[path[path.length - 1]] = value;
+      return next;
+    });
+  }, [setResumeData]);
+
+  // Overwrite the currently-open saved résumé (Save). If it isn't saved yet,
+  // this falls through to Save-as-new.
+  const onSave = useCallback(() => {
+    if (!currentId) {
+      onSaveAsNew();
+      return;
+    }
+    setSaving(true);
+    fetch(`/api/resumes/${encodeURIComponent(currentId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title || undefined, data: resumeData }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Save failed'))))
+      .then((saved) => {
+        setTitle(saved.title);
+        addToast('Résumé saved.', ToastType.SUCCESS);
+      })
+      .catch(() => addToast('Could not save the résumé.', ToastType.ERROR))
+      .finally(() => setSaving(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId, title, resumeData, addToast]);
+
+  // Create a brand-new library entry from the current résumé (Save as new).
+  const onSaveAsNew = useCallback(() => {
+    setSaving(true);
+    fetch('/api/resumes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title || resumeData.personal.name || undefined, data: resumeData }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Save failed'))))
+      .then((saved) => {
+        setCurrentId(saved.id);
+        setTitle(saved.title);
+        addToast('Saved as a new résumé.', ToastType.SUCCESS);
+        router.replace(`/editResume?id=${encodeURIComponent(saved.id)}`, undefined, { shallow: true });
+      })
+      .catch(() => addToast('Could not save the résumé.', ToastType.ERROR))
+      .finally(() => setSaving(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, resumeData, addToast, router]);
 
   const onImportData = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e && e.target && e.target.files) {
@@ -673,26 +776,47 @@ return (
           <div className="resume flex-auto h-full overflow-auto">
             <div className="h-full">
               <div className="p-8 rounded-lg">
-              <span className="flex flex-row place-content-between mt-4 mb-2">
-                <span className="text-3xl">
-                  Resume
-                </span>
-                <button className="bg-blue-700 text-white p-2 rounded" onClick={onResumeDownloadClick}>
-                  <span className="flex flex-row">
+              <div className="flex flex-row flex-wrap items-center gap-2 mt-4 mb-2">
+                <Link href="/">
+                  <a className="text-sm text-blue-700 hover:underline whitespace-nowrap">← Library</a>
+                </Link>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Résumé title (e.g. Product / Full-stack)"
+                  className="flex-auto min-w-[8rem] text-lg font-semibold border-b border-gray-300 focus:border-blue-500 outline-none px-1 py-1 bg-transparent"
+                />
+                <button
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm px-3 py-2 rounded whitespace-nowrap"
+                  onClick={onSave}
+                  disabled={saving}
+                >
+                  {currentId ? 'Save' : 'Save to library'}
+                </button>
+                <button
+                  className="bg-emerald-500/80 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm px-3 py-2 rounded whitespace-nowrap"
+                  onClick={onSaveAsNew}
+                  disabled={saving}
+                >
+                  Save as new
+                </button>
+                <button className="bg-blue-700 hover:bg-blue-800 text-white text-sm px-3 py-2 rounded whitespace-nowrap" onClick={onResumeDownloadClick}>
+                  <span className="flex flex-row items-center">
                     <span className={downloadLoading ? "animate-bounce" : ""}>
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                       </svg>
                     </span>
-                    {/* <LoaderSpinner /> */}
-                    <span className='pl-1'>
-                      Download Resume
-                    </span>
+                    <span className='pl-1'>Download PDF</span>
                   </span>
                 </button>
-              </span>
+              </div>
+              <p className="text-xs text-gray-400 mb-2">
+                Tip: click any text on the résumé below to edit it in place. Select text and press ⌘/Ctrl+B to bold.
+              </p>
                 <div className="bordered shadow-lg">
-                  <CV1 {...resumeData} />
+                  <CV1 {...resumeData} editable onFieldEdit={applyFieldEdit} />
                 </div>
               </div>
             </div>
