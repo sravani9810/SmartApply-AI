@@ -206,6 +206,16 @@ export const CV1 = (data: ResumeData): JSX.Element => {
         </div>
       </div>
 
+      {/* Summary */}
+      {data.summary?.length ? (
+        <div id="summary">
+          <SectionHeading title="Summary" />
+          {data.summary.map((para, i) => (
+            <p key={i} style={{ marginTop: i === 0 ? '4px' : '8px', lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: para }} />
+          ))}
+        </div>
+      ) : null}
+
       {/* Skills */}
       {(data.skills?.length || p.skillset?.length) ? (
         <div id="skills">
@@ -222,16 +232,6 @@ export const CV1 = (data: ResumeData): JSX.Element => {
               <SkillSetComp skillset={p.skillset} />
             )}
           </ul>
-        </div>
-      ) : null}
-
-      {/* Summary */}
-      {data.summary?.length ? (
-        <div id="summary">
-          <SectionHeading title="Summary" />
-          {data.summary.map((para, i) => (
-            <p key={i} style={{ marginTop: i === 0 ? '4px' : '8px', lineHeight: 1.4 }} dangerouslySetInnerHTML={{ __html: para }} />
-          ))}
         </div>
       ) : null}
 
