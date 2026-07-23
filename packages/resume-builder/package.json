@@ -4,7 +4,7 @@
   "private": true,
   "description": "Part 4 — data-driven resume/CV builder that renders a ResumeData JSON to a downloadable PDF (puppeteer locally, PDFShift in production).",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000",
     "build": "next build",
     "build:styles": "npx tailwindcss -o public/build.css --minify ",
     "start": "next start",

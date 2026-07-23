@@ -8,6 +8,7 @@ import * as s from "./schema";
 import { autoTag } from "../lib/tags";
 import { runIngest } from "../lib/ingest";
 import { isJobStatus } from "../lib/status";
+import { logError } from "../lib/log";
 import type { ComposeState } from "../lib/compose";
 
 /** Set a job's status and mirror it onto its application (shared by row + bulk). */
@@ -119,6 +120,7 @@ export async function composeResumeAction(input: {
     revalidatePath("/resumes");
     return { ok: true, resumeId: id, usedClaude, meta, data: resumeData, state, instructionsLog: log };
   } catch (err) {
+    logError("compose", err, { resumeId: input.resumeId });
     return { ok: false, error: (err as Error).message };
   }
 }
@@ -170,10 +172,58 @@ export async function saveApplicantFields(formData: FormData) {
   revalidatePath("/profile");
 }
 
+/** Turn the OS (launchd) job-search scheduler on/off, or run it once now. */
+export async function controlSchedulerAction(cmd: "on" | "off" | "now") {
+  const { controlScheduler } = await import("../lib/scheduler");
+  const res = await controlScheduler(cmd);
+  revalidatePath("/scheduler");
+  return res;
+}
+
+/** Set which platforms the scheduled ingest scrapes (hub toggles). */
+export async function setSchedulerSourcesAction(sources: string[]) {
+  const { setSchedulerSources } = await import("./queries");
+  setSchedulerSources(sources);
+  revalidatePath("/scheduler");
+}
+
 /** Run the Part 1 pipeline and upsert jobs into the DB (dashboard button). */
 export async function refreshJobs() {
   await runIngest();
   revalidatePath("/");
+}
+
+export interface SearchResult {
+  ok: boolean;
+  error?: string;
+  received?: number;
+  written?: number;
+}
+
+/**
+ * Scrape jobs for a specific search (keywords + location) via the Part 1
+ * pipeline and import them into the hub. Powers the dashboard search box.
+ */
+export async function searchJobsAction(input: {
+  keywords: string; location?: string; postedWithinDays?: number; sources?: string[];
+}): Promise<SearchResult> {
+  const keywords = input.keywords.split(",").map((k) => k.trim()).filter(Boolean);
+  if (keywords.length === 0) return { ok: false, error: "Enter at least one keyword." };
+  const sources = (input.sources ?? []).filter(Boolean);
+  if (sources.length === 0) return { ok: false, error: "Pick at least one platform to search." };
+  const query = {
+    keywords,
+    location: input.location?.trim() || undefined,
+    postedWithinDays: input.postedWithinDays && input.postedWithinDays > 0 ? input.postedWithinDays : 7,
+  };
+  try {
+    const { received, written } = await runIngest([query], sources);
+    revalidatePath("/");
+    return { ok: true, received, written };
+  } catch (err) {
+    logError("search", err, { keywords, sources });
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 /** Tailor a résumé for a job with the chosen flavor (Claude on subscription). */

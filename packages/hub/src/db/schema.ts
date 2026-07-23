@@ -276,6 +276,12 @@ export const learnedAnswers = sqliteTable("learned_answers", {
   updatedAt: text("updated_at").notNull().default(now),
 });
 
+/** Small key/value store for hub settings (e.g. which platforms the scheduler scrapes). */
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value", { mode: "json" }),
+});
+
 /** Singleton applicant profile — the résumé header (name, email, links). */
 export const profile = sqliteTable("profile", {
   id: text("id").primaryKey(), // always "me"

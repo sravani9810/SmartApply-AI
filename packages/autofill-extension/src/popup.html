@@ -3,93 +3,206 @@
   <head>
     <meta charset="utf-8" />
     <style>
-      body { font: 13px system-ui, sans-serif; width: 300px; padding: 12px; }
-      h2 { font-size: 12px; text-transform: uppercase; color: #888; margin: 14px 0 6px; letter-spacing: .04em; }
-      label { display: block; margin: 6px 0 2px; color: #444; }
-      input { width: 100%; box-sizing: border-box; padding: 4px 6px; }
-      .row { display: flex; gap: 6px; margin-top: 10px; }
-      button { flex: 1; padding: 6px; cursor: pointer; }
-      #status { margin-top: 8px; color: #2a7; min-height: 16px; }
-      hr { border: none; border-top: 1px solid #eee; margin: 14px 0; }
+      :root {
+        --accent: #6c8cff; --accent2: #3ecf8e;
+        --grad: linear-gradient(135deg, #6c8cff, #3ecf8e);
+        --claude: linear-gradient(135deg, #7c5cff, #a879ff);
+        --bg: #ffffff; --panel: #f6f8fb; --panel2: #eef1f6;
+        --border: #e3e7ee; --text: #1e2430; --muted: #6b7280;
+        --good: #17935a; --good-bg: #e4f6ec; --danger: #c0392b; --danger-bg: #fbe9e7;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #12161d; --panel: #1a2029; --panel2: #212936;
+          --border: #2a3240; --text: #e7ebf2; --muted: #93a0b4;
+          --good: #3ecf8e; --good-bg: #14301f; --danger: #f0a3a3; --danger-bg: #331a1a;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        width: 328px; margin: 0; background: var(--bg); color: var(--text);
+      }
 
-      /* Job context */
-      #job { border: 1px solid #e3e3e3; border-radius: 6px; padding: 8px; background: #fafafa; }
-      #jobTitle { font-weight: 600; }
-      #jobMeta { color: #666; margin-top: 2px; }
-      #jobStatus { margin-top: 4px; }
-      .badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 11px; background: #eee; color: #555; }
-      .badge.applied { background: #dff5e3; color: #1b7a3d; }
-      .badge.skipped { background: #f3e0e0; color: #9a3b3b; }
-      .muted { color: #999; }
-      select { width: 100%; padding: 4px; margin-top: 6px; }
-      textarea { width: 100%; box-sizing: border-box; padding: 4px 6px; min-height: 48px; resize: vertical; }
-      label.chk { display: flex; align-items: center; gap: 6px; margin: 4px 0 8px; color: #333; }
-      label.chk input { width: auto; }
+      /* Header band */
+      .hdr { background: var(--grad); padding: 12px 14px; color: #fff; }
+      .hdr-top { display: flex; align-items: center; gap: 9px; }
+      .hdr-top img { border-radius: 7px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+      .hdr-top .name { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
+      .hdr-top .name small { display: block; font-weight: 500; font-size: 10.5px; opacity: .85; letter-spacing: .3px; }
+      .conn { display: flex; align-items: center; gap: 7px; margin-top: 10px; }
+      .chip {
+        display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
+        background: rgba(255,255,255,.16); color: #fff; padding: 3px 9px; border-radius: 999px;
+        cursor: pointer; backdrop-filter: blur(2px);
+      }
+      .chip:hover { background: rgba(255,255,255,.28); }
+      .cdot { width: 7px; height: 7px; border-radius: 50%; background: #d8dee9; display: inline-block; flex: none; }
+      .cdot.on { background: #b8ffdd; box-shadow: 0 0 5px #b8ffdd; }
+      .cdot.off { background: #ffb4a8; }
+
+      .body { padding: 12px 14px 14px; }
+
+      /* Section titles */
+      h2 {
+        font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+        margin: 16px 0 8px; display: flex; align-items: center; gap: 7px; font-weight: 700;
+      }
+      h2::before { content: ""; width: 3px; height: 12px; border-radius: 2px; background: var(--grad); }
+      .body > h2:first-child { margin-top: 2px; }
+
+      /* Job card */
+      #job {
+        border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+        background: var(--panel);
+      }
+      #jobTitle { font-weight: 650; font-size: 13.5px; line-height: 1.3; }
+      #jobMeta { color: var(--muted); margin-top: 3px; font-size: 12px; }
+      #jobStatus { margin-top: 6px; }
+      #jobTailored { margin-top: 8px; font-size: 11.5px; }
+      #jobTailored a { color: var(--accent); }
+
+      .badge {
+        display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px;
+        font-weight: 600; background: var(--panel2); color: var(--muted); text-transform: capitalize;
+      }
+      .badge.applied { background: var(--good-bg); color: var(--good); }
+      .badge.skipped { background: var(--danger-bg); color: var(--danger); }
+      .muted { color: var(--muted); }
+      a { color: var(--accent); }
+
+      /* Layout */
+      .row { display: flex; gap: 8px; margin-top: 9px; }
+
+      /* Buttons */
+      button {
+        flex: 1; padding: 9px 10px; cursor: pointer; font: inherit; font-weight: 600; font-size: 12.5px;
+        border-radius: 9px; border: 1px solid var(--border); background: var(--panel); color: var(--text);
+        transition: transform .05s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
+      }
+      button:hover { border-color: var(--accent); }
+      button:active { transform: translateY(1px); }
+      .btn-primary {
+        background: var(--grad); color: #fff; border: none; box-shadow: 0 2px 8px rgba(108,140,255,.35);
+      }
+      .btn-primary:hover { filter: brightness(1.05); box-shadow: 0 3px 12px rgba(108,140,255,.5); }
+      .btn-claude { background: var(--claude); color: #fff; border: none; box-shadow: 0 2px 8px rgba(124,92,255,.35); }
+      .btn-claude:hover { filter: brightness(1.06); }
+      .btn-success { color: var(--good); border-color: var(--good-bg); background: var(--good-bg); }
+      .btn-success:hover { border-color: var(--good); }
+      .btn-danger { color: var(--danger); border-color: var(--danger-bg); background: var(--danger-bg); }
+      .btn-danger:hover { border-color: var(--danger); }
+      .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); font-weight: 500; }
+      .btn-ghost:hover { background: var(--panel); border-color: var(--border); color: var(--text); }
+
+      /* Inputs */
+      input[type="text"], select, textarea {
+        width: 100%; box-sizing: border-box; padding: 8px 10px; font: inherit; font-size: 12.5px;
+        border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text);
+      }
+      input:focus, select:focus, textarea:focus {
+        outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,140,255,.18);
+      }
+      label { display: block; margin: 8px 0 3px; color: var(--muted); font-size: 11.5px; }
+      textarea { min-height: 48px; resize: vertical; }
+
+      /* Toggles */
+      label.chk {
+        display: flex; align-items: center; gap: 9px; margin: 0; padding: 9px 11px; color: var(--text);
+        background: var(--panel); border: 1px solid var(--border); border-radius: 9px; font-size: 12.5px;
+        cursor: pointer;
+      }
+      label.chk + label.chk { margin-top: 7px; }
+      label.chk input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+      /* Info + status lines */
+      #profileInfo, #learnedInfo { font-size: 11.5px; margin: 8px 0 4px; }
+      #status {
+        margin-top: 12px; min-height: 16px; font-size: 12px; color: var(--good);
+        padding: 0 2px; line-height: 1.4;
+      }
+      #status:empty { margin-top: 0; }
+      #status a { color: var(--accent); }
+
+      hr { border: none; border-top: 1px solid var(--border); margin: 16px 0 4px; }
+      details summary { cursor: pointer; font-size: 11.5px; color: var(--muted); margin-top: 10px; }
+      details summary:hover { color: var(--text); }
+      details[open] summary { margin-bottom: 4px; }
+      #editProfile { font-weight: 600; }
     </style>
   </head>
   <body>
-    <strong>SmartApply</strong>
+    <div class="hdr">
+      <div class="hdr-top">
+        <img src="icons/icon48.png" width="30" height="30" alt="" />
+        <div class="name">SmartApply<small>Autofill &amp; job tracker</small></div>
+      </div>
+      <div class="conn" id="conn" title="Click to re-check connectivity">
+        <span class="chip"><span class="cdot" id="hubDot"></span><span id="hubLabel">Hub…</span></span>
+        <span class="chip"><span class="cdot" id="claudeDot"></span><span id="claudeLabel">Claude…</span></span>
+      </div>
+    </div>
 
-    <h2>This job</h2>
-    <div id="job">
-      <div id="jobTitle" class="muted">No jobs loaded.</div>
-      <div id="jobMeta"></div>
-      <div id="jobStatus"></div>
-      <div id="jobTailored" class="muted" style="margin-top:6px;"></div>
-    </div>
-    <!-- Manual pick when the current page can't be auto-matched -->
-    <select id="jobPicker" hidden></select>
-    <div class="row">
-      <button id="markApplied">Mark Applied</button>
-      <button id="markSkipped">Mark Skipped</button>
-    </div>
-    <div class="row">
-      <button id="addJob">➕ Add this job &amp; make résumé</button>
-    </div>
-    <div class="row">
-      <button id="syncHub">↻ Sync jobs from Hub</button>
-    </div>
-    <details style="margin-top:8px;">
-      <summary class="muted" style="cursor:pointer;">Advanced: hub URL &amp; file import</summary>
-      <label>Hub URL</label>
-      <input type="text" id="hubUrl" placeholder="http://localhost:3100" />
+    <div class="body">
+      <h2>This job</h2>
+      <div id="job">
+        <div id="jobTitle" class="muted">No jobs loaded.</div>
+        <div id="jobMeta"></div>
+        <div id="jobStatus"></div>
+        <div id="jobTailored" class="muted"></div>
+      </div>
+      <!-- Manual pick when the current page can't be auto-matched -->
+      <select id="jobPicker" hidden style="margin-top:8px;"></select>
       <div class="row">
-        <label style="flex:1; margin:0;">
-          Load jobs (jobs-export.json)
-          <input type="file" id="importJobs" accept="application/json,.json" />
-        </label>
+        <button id="markApplied" class="btn-success">✓ Applied</button>
+        <button id="markSkipped" class="btn-danger">✕ Skip</button>
       </div>
       <div class="row">
-        <button id="exportStatus">Export status updates</button>
+        <button id="addJob" class="btn-primary">➕ Add this job &amp; make résumé</button>
       </div>
-    </details>
+      <div class="row">
+        <button id="syncHub">↻ Sync jobs from Hub</button>
+      </div>
+      <details>
+        <summary>Advanced: hub URL &amp; file import</summary>
+        <label>Hub URL</label>
+        <input type="text" id="hubUrl" placeholder="http://localhost:3100" />
+        <label>Load jobs (jobs-export.json)</label>
+        <input type="file" id="importJobs" accept="application/json,.json" />
+        <div class="row">
+          <button id="exportStatus" class="btn-ghost">Export status updates</button>
+        </div>
+      </details>
 
-    <hr />
+      <hr />
 
-    <h2>Autofill</h2>
-    <div class="muted" style="margin-bottom:6px;">
-      Your personal info is managed in the Hub.
-      <a id="editProfile" href="#" target="_blank" rel="noreferrer">Edit personal info →</a>
-    </div>
-    <div id="profileInfo" class="muted" style="margin-bottom:6px;"></div>
-    <div class="row">
-      <button id="syncProfile">↻ Sync personal info from Hub</button>
-    </div>
-    <label class="chk"><input type="checkbox" id="autofillOnOpen" /> Auto-fill when I open an application</label>
-    <label class="chk"><input type="checkbox" id="learnToggle" /> Learn new answers as I fill forms</label>
-    <div id="learnedInfo" class="muted" style="margin-bottom:6px;"></div>
-    <div class="row">
-      <button id="fill">Fill</button>
-      <button id="fillSubmit">Fill &amp; Submit</button>
-    </div>
-    <div class="row">
-      <button id="fillClaude">🤖 Fill unknowns with Claude</button>
-    </div>
-    <div class="row">
-      <button id="clearLearned">Clear learned answers</button>
-    </div>
+      <h2>Autofill</h2>
+      <div class="muted" id="profileHint">
+        Your personal info is managed in the Hub.
+        <a id="editProfile" href="#" target="_blank" rel="noreferrer">Edit personal info →</a>
+      </div>
+      <div id="profileInfo" class="muted"></div>
+      <div class="row">
+        <button id="syncProfile">↻ Sync personal info from Hub</button>
+      </div>
 
-    <div id="status"></div>
+      <label class="chk"><input type="checkbox" id="autofillOnOpen" /> Auto-fill when I open an application</label>
+      <label class="chk"><input type="checkbox" id="learnToggle" /> Learn new answers as I fill forms</label>
+      <div id="learnedInfo" class="muted"></div>
+
+      <div class="row">
+        <button id="fill" class="btn-primary">Fill</button>
+        <button id="fillSubmit">Fill &amp; Submit</button>
+      </div>
+      <div class="row">
+        <button id="fillClaude" class="btn-claude">🤖 Fill unknowns with Claude</button>
+      </div>
+      <div class="row">
+        <button id="clearLearned" class="btn-ghost">Clear learned answers</button>
+      </div>
+
+      <div id="status"></div>
+    </div>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

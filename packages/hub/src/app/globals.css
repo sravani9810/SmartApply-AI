@@ -137,6 +137,32 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .fu-log { margin: 12px 0 0; padding-left: 22px; color: var(--muted); font-size: 12px; }
 .fu-log li { margin: 2px 0; line-height: 1.4; }
 
+/* connectivity status badge */
+.statusbadge { display: inline-flex; align-items: center; gap: 7px; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 12px;
+  color: var(--muted); cursor: pointer; }
+.statusbadge:hover { border-color: var(--accent); }
+.statusbadge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.statusbadge.online { color: var(--good); }
+.statusbadge.online .dot { background: var(--good); box-shadow: 0 0 6px var(--good); }
+.statusbadge.offline { color: #f0a3a3; }
+.statusbadge.offline .dot { background: #f0a3a3; }
+.statusbadge.checking .dot { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+/* scheduler output */
+.schedout { white-space: pre-wrap; background: #0d1220; border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--muted); margin-top: 10px; overflow-x: auto; }
+
+/* dashboard search box */
+.searchbox { margin-top: 12px; }
+.searchrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.searchrow input.status { min-width: 120px; }
+.platforms { display: flex; align-items: center; gap: 14px; margin-top: 8px; font-size: 13px; }
+.platforms .muted { font-size: 12px; }
+.plat { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.plat input { width: 14px; height: 14px; }
+
 /* personal info page */
 .pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
 .pgrid .fld > span em { font-style: normal; text-transform: none; letter-spacing: 0; }

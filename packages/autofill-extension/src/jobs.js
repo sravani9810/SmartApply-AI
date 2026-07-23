@@ -37,6 +37,26 @@ export async function syncProfileFromHub() {
   };
 }
 
+/**
+ * Check hub + Claude connectivity. Returns { hubOnline, claude:{online,reason} }.
+ * hubOnline is true when the hub answers; claude.online reflects the hub's probe.
+ */
+export async function checkHealth(timeoutMs = 25000) {
+  const base = await getHubUrl();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${base}/api/health`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) return { hubOnline: true, claude: { online: false, reason: `hub ${res.status}` } };
+    const j = await res.json();
+    return { hubOnline: true, claude: j.claude ?? { online: false } };
+  } catch {
+    clearTimeout(timer);
+    return { hubOnline: false, claude: { online: false, reason: "hub unreachable" } };
+  }
+}
+
 /** Push a learned answer back to the hub (best-effort). */
 export async function postLearned(label, value) {
   const base = await getHubUrl();

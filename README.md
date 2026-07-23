@@ -49,6 +49,14 @@ edits. Google Sheets sync is optional and skipped automatically when unset. See
 [`packages/job-search`](packages/job-search) for the full setup, the live Indeed
 connector, and scheduler caveats.
 
+Live connectors drive a logged-in Chrome profile — sign in once, then the
+pipeline (and the hub's search box) scrapes as you:
+
+```bash
+npm run login:indeed         # then set INDEED_ENABLED=true
+npm run login:linkedin       # then set LINKEDIN_ENABLED=true
+```
+
 ## Part 2 — Autofill Extension
 
 Loads the jobs Part 1 found (`jobs-export.json`), matches the current tab to a

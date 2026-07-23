@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getResume } from "../../../../../db/queries";
+import { logError } from "../../../../../lib/log";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       },
     });
   } catch (err) {
+    logError("resume.pdf", err, { id, base });
     return NextResponse.json(
       { error: (err as Error).message, hint: `Start the resume-builder: npm run resume:dev (expected at ${base})` },
       { status: 502 },

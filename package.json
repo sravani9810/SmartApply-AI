@@ -11,6 +11,7 @@
     "typecheck": "tsc --build",
     "search": "npm run start --workspace @smartapply/job-search",
     "login:indeed": "npm run login:indeed --workspace @smartapply/job-search",
+    "login:linkedin": "npm run login:linkedin --workspace @smartapply/job-search",
     "import:indeed": "npm run import:indeed --workspace @smartapply/job-search",
     "schedule:on": "npm run schedule:on --workspace @smartapply/job-search",
     "schedule:off": "npm run schedule:off --workspace @smartapply/job-search",
@@ -18,10 +19,14 @@
     "schedule:status": "npm run schedule:status --workspace @smartapply/job-search",
     "resume:dev": "npm run dev --workspace @smartapply/resume-builder",
     "resume:build": "npm run build --workspace @smartapply/resume-builder",
-    "resume:start": "npm run start --workspace @smartapply/resume-builder"
+    "resume:start": "npm run start --workspace @smartapply/resume-builder",
+    "hub:dev": "npm run dev --workspace @smartapply/hub",
+    "hub": "concurrently -n resume,hub -c cyan,green \"npm:resume:dev\" \"npm:hub:dev\"",
+    "dev": "npm run hub"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "concurrently": "^10.0.3",
+    "typescript": "^5.6.0"
   }
 }

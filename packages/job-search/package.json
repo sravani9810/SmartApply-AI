@@ -9,6 +9,7 @@
     "build": "tsc --build",
     "start": "node dist/index.js",
     "login:indeed": "node scripts/login-indeed.mjs",
+    "login:linkedin": "node scripts/login-linkedin.mjs",
     "import:indeed": "node scripts/import-indeed.mjs",
     "schedule:on": "bash scripts/schedule.sh on",
     "schedule:off": "bash scripts/schedule.sh off",
