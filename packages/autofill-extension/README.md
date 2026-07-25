@@ -77,6 +77,32 @@ It fills **only empty fields** (never overwrites what you typed) and matches by
 each field's name/id/label/placeholder/aria-label, setting values in a way
 React/Vue controlled inputs detect.
 
+## Auto-pilot (agentic, multi-page)
+
+**🚀 Run Auto-pilot** turns the extension into an agent. It runs in the
+background service worker (so it survives the popup closing and full-page
+navigations) and loops over the whole application:
+
+> **observe → deterministic fill → reason about unknowns → apply → decide**
+
+- **Fast local model first, Claude as backup.** Unknown fields are batched to a
+  fast on-device model, and only the leftovers escalate to Claude. Pick the
+  engine under **Auto-pilot engine**:
+  - `auto` — Chrome built-in (Gemini Nano) → Ollama (Gemma) → Claude (default)
+  - `ollama` — local [Ollama](https://ollama.com) running Gemma
+    (`ollama run gemma2:2b`), at the URL/model you set
+  - `chrome` — Chrome's built-in `LanguageModel` (Gemini Nano) only
+  - `claude` — Claude via the Hub only
+- **It navigates pages by itself.** When a page is done it clicks
+  **Next / Continue** and waits for the next page (SPA step *or* full reload) to
+  settle, then repeats — across embedded ATS iframes too.
+- **It always stops at Submit.** When it reaches a final **Submit** with no Next,
+  or hits a required field it can't answer, it stops and tells you why. It
+  **never clicks Submit** — you review and submit yourself (or use **Fill &
+  Submit**). Submitting an application is irreversible.
+- **Guards:** step limit, loop/no-progress detection, and consent/terms
+  checkboxes are never auto-answered.
+
 ### Two hard limits (browser rules, not bugs)
 
 - **Resume upload can't be automated.** Browsers forbid setting a file input's
@@ -86,10 +112,17 @@ React/Vue controlled inputs detect.
 
 ### Files
 
-- **`content.js`** — the filler (matchers, auto-fill-on-open, form detection).
+- **`content.js`** — the filler (matchers, auto-fill-on-open, form detection) plus
+  the Auto-pilot page primitives (`__smartApplyObserve` / `__smartApplyApply` /
+  `__smartApplyNext`). Self-contained — it can't `import`.
+- **`agent.js`** — the Auto-pilot orchestration loop (observe → fill → reason →
+  navigate → stop at submit). Imported by the background worker.
+- **`reasoner.js`** — pluggable reasoning backends (Ollama/Gemma, Chrome built-in
+  Gemini Nano, Claude-via-Hub) with the local-first → Claude router.
 - **`popup.html` / `popup.js`** — profile editor, auto-fill toggle, Fill/Submit,
-  and the job-context panel.
-- **`background.js`** — seeds settings and relays autofill requests.
+  Auto-pilot controls + engine settings, and the job-context panel.
+- **`background.js`** — ES-module service worker: seeds settings and hosts the
+  Auto-pilot loop (start/stop/progress).
 - **`jobs.js`** — job store: import/load jobs, match the current URL, track status.
 
 ## Load it (unpacked)

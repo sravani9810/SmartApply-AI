@@ -24,9 +24,11 @@ for the full behavior; this skill covers how to change it safely.
 | File | Role | Context |
 |------|------|---------|
 | [`profile.js`](../../../packages/autofill-extension/src/profile.js) | `PROFILE_FIELDS`, `DEFAULT_PROFILE`, settings, storage helpers | ES module, imported by the popup |
-| [`content.js`](../../../packages/autofill-extension/src/content.js) | the actual filler: matchers, form detection, set-value, choices, learning | injected content script |
-| [`popup.html`](../../../packages/autofill-extension/src/popup.html) / [`popup.js`](../../../packages/autofill-extension/src/popup.js) | profile editor, autofill toggle, Fill / Fill & Submit, job panel | popup page |
-| [`background.js`](../../../packages/autofill-extension/src/background.js) | seeds settings, relays autofill requests | service worker |
+| [`content.js`](../../../packages/autofill-extension/src/content.js) | the actual filler: matchers, form detection, set-value, choices, learning; plus Auto-pilot page primitives (`__smartApplyObserve`/`__smartApplyApply`/`__smartApplyNext`) | injected content script |
+| [`agent.js`](../../../packages/autofill-extension/src/agent.js) | Auto-pilot loop: observe → fill → reason → navigate → **stop at submit** | ES module, imported by `background.js` |
+| [`reasoner.js`](../../../packages/autofill-extension/src/reasoner.js) | pluggable reasoning backends (Ollama/Gemma, Chrome built-in Gemini Nano, Claude-via-Hub) + local-first→Claude router | ES module, imported by `agent.js` |
+| [`popup.html`](../../../packages/autofill-extension/src/popup.html) / [`popup.js`](../../../packages/autofill-extension/src/popup.js) | profile editor, autofill toggle, Fill / Fill & Submit, **Auto-pilot** controls + engine settings, job panel | popup page |
+| [`background.js`](../../../packages/autofill-extension/src/background.js) | ES-**module** worker: seeds settings, hosts the Auto-pilot loop (start/stop/progress) | service worker |
 | [`jobs.js`](../../../packages/autofill-extension/src/jobs.js) | job store: import jobs, match current URL, track status | shared |
 
 **The rule: `content.js` cannot `import`.** MV3 content scripts have no module
@@ -87,9 +89,12 @@ after load (the open-time watcher covers a few seconds — lengthen only if need
 - **Resume/CV upload can't be automated.** Browsers forbid scripting a file
   input's value. The user always attaches the resume themselves. Don't add code
   that pretends to.
-- **Submit stays manual.** Auto-fill must never click submit — submitting an
-  application is irreversible. "Fill & Submit" is a separate, explicit user
-  action.
+- **Submit stays manual.** Neither auto-fill nor Auto-pilot may click submit —
+  submitting an application is irreversible. Auto-pilot *does* click
+  **Next / Continue** to advance multi-page forms (`__smartApplyNext` is coded to
+  only ever click next-like buttons, never submit-like ones — see the
+  `CLICK_SUBMIT_RE` / `CLICK_NEXT_RE` split in `content.js`), but it stops at the
+  final Submit. "Fill & Submit" remains a separate, explicit user action.
 
 ## Load / reload to test
 

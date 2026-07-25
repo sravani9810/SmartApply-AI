@@ -369,6 +369,185 @@
     return { filled, unknown, submitted: submit ? submitForm() : false };
   };
 
+  // ===========================================================================
+  // Agentic primitives — used by the Auto-pilot loop in the background worker.
+  // These only OBSERVE and FILL/NAVIGATE; they never click a submit control.
+  // Everything is tagged with data-sa-* attributes so the loop can address the
+  // exact element across executeScript round-trips.
+  // ===========================================================================
+
+  const isRequired = (el) =>
+    el.required || el.getAttribute("aria-required") === "true" ||
+    !!el.closest("[aria-required='true']");
+
+  const isFilled = (el) => {
+    if (el.tagName === "SELECT") {
+      const o = el.selectedOptions[0];
+      return !!(el.value && el.value.trim()) && !(o && /select|choose|^--/i.test(o.text.trim()));
+    }
+    if (isChoice(el)) return false; // handled at group level
+    return !!(el.value && el.value.trim());
+  };
+
+  /**
+   * Snapshot every fillable field on the page (text/textarea/select + radio
+   * groups + checkboxes), tagging each with a stable data-sa-key so answers can
+   * be applied back later. Radio options are collapsed into a single entry.
+   */
+  function snapshotFields() {
+    const out = [];
+    const radioGroups = new Map(); // groupKey -> { els, question }
+    let k = 0;
+
+    for (const el of deepFields()) {
+      if (!fillable(el)) continue;
+
+      if (el.type === "radio") {
+        const gk = el.name || groupQuestion(el) || `__r${radioGroups.size}`;
+        if (!radioGroups.has(gk)) radioGroups.set(gk, { els: [], question: "" });
+        const g = radioGroups.get(gk);
+        g.els.push(el);
+        g.question = g.question || groupQuestion(el);
+        continue;
+      }
+
+      if (el.type === "checkbox") {
+        const context = `${optionLabel(el)} ${groupQuestion(el)}`;
+        const key = `sa${k++}`;
+        el.setAttribute("data-sa-key", key);
+        out.push({
+          key, type: "checkbox",
+          label: humanLabel(el) || optionLabel(el) || groupQuestion(el),
+          required: isRequired(el), filled: el.checked, consent: CONSENT_RE.test(context),
+        });
+        continue;
+      }
+
+      const label = humanLabel(el);
+      if (!label && el.tagName !== "SELECT") continue;
+      const key = `sa${k++}`;
+      el.setAttribute("data-sa-key", key);
+      out.push({
+        key,
+        type: el.tagName === "TEXTAREA" ? "textarea" : el.tagName === "SELECT" ? "select" : "text",
+        label: label || el.name || el.id,
+        required: isRequired(el),
+        filled: isFilled(el),
+        options: el.tagName === "SELECT"
+          ? [...el.options].map((o) => o.text.trim()).filter((t) => t && !/^--|select|choose/i.test(t))
+          : undefined,
+      });
+    }
+
+    let gi = 0;
+    for (const [, g] of radioGroups) {
+      const key = `sar${gi++}`;
+      g.els.forEach((el) => el.setAttribute("data-sa-key", key));
+      out.push({
+        key, type: "radio",
+        label: norm(g.question) || humanLabel(g.els[0]) || "choice",
+        required: g.els.some(isRequired),
+        filled: g.els.some((r) => r.checked),
+        options: g.els.map(optionLabel).filter(Boolean),
+      });
+    }
+    return out;
+  }
+
+  const CLICK_SUBMIT_RE = /\b(submit|apply now|submit application|send application|finish|complete)\b/i;
+  const CLICK_NEXT_RE = /\b(next|continue|save and continue|save & continue|proceed|review|go to next)\b/i;
+
+  function clickable() {
+    const nodes = [
+      ...document.querySelectorAll("button, input[type=submit], input[type=button], [role=button]"),
+    ];
+    return nodes.filter((b) => !b.disabled && b.offsetParent !== null);
+  }
+
+  const btnText = (b) => (b.innerText || b.value || b.getAttribute("aria-label") || "").trim();
+
+  /**
+   * Classify the page's action buttons. Tags the chosen "next" button with
+   * data-sa-next so __smartApplyNext can click the exact one. Never tags submit.
+   */
+  function detectButtons() {
+    let hasSubmit = false, hasNext = false, nextTagged = false;
+    // Iterate bottom-up so the last (usually primary) next button wins the tag.
+    const btns = clickable();
+    for (const b of btns) delete b.dataset.saNext;
+    for (const b of [...btns].reverse()) {
+      const t = btnText(b);
+      if (!t) continue;
+      if (CLICK_SUBMIT_RE.test(t) && !CLICK_NEXT_RE.test(t)) { hasSubmit = true; continue; }
+      if (CLICK_NEXT_RE.test(t)) {
+        hasNext = true;
+        if (!nextTagged) { b.setAttribute("data-sa-next", "1"); nextTagged = true; }
+      }
+    }
+    return { hasNext, hasSubmit };
+  }
+
+  window.__smartApplyObserve = () => {
+    const fields = snapshotFields();
+    const buttons = detectButtons();
+    const requiredEmpty = fields.filter((f) => f.required && !f.filled && !f.consent).length;
+    return {
+      url: location.href,
+      isForm: looksLikeApplicationForm(),
+      step: (document.querySelector("[aria-current='step'], .step.active, [class*='step'][class*='active']")?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80),
+      fields,
+      requiredEmpty,
+      ...buttons,
+    };
+  };
+
+  /** Apply reasoned answers addressed by data-sa-key (text/select/radio/checkbox). */
+  window.__smartApplyApply = (byKey) => {
+    let filled = 0;
+    for (const [key, value] of Object.entries(byKey || {})) {
+      if (value === "" || value == null) continue;
+      const els = [...document.querySelectorAll(`[data-sa-key="${CSS.escape(key)}"]`)];
+      // shadow DOM elements won't match a document query — fall back to a deep scan.
+      const targets = els.length ? els : deepFields().filter((e) => e.getAttribute?.("data-sa-key") === key);
+      if (!targets.length) continue;
+      const first = targets[0];
+
+      if (first.type === "radio") {
+        const v = String(value).toLowerCase();
+        const pick = targets.find((r) => {
+          const opt = optionLabel(r);
+          return opt && (opt.includes(v) || v.includes(opt));
+        });
+        if (pick && !pick.checked) {
+          pick.checked = true;
+          pick.dispatchEvent(new Event("change", { bubbles: true }));
+          filled++;
+        }
+      } else if (first.type === "checkbox") {
+        const yes = /^(yes|true|1|checked|agree|i agree)$/i.test(String(value).trim());
+        if (yes && !first.checked) {
+          first.checked = true;
+          first.dispatchEvent(new Event("change", { bubbles: true }));
+          filled++;
+        }
+      } else if (first.tagName === "SELECT") {
+        if (!first.value && fillSelect(first, String(value))) filled++;
+      } else if (!(first.value && first.value.trim())) {
+        setValue(first, String(value));
+        filled++;
+      }
+    }
+    return filled;
+  };
+
+  /** Click the "next / continue" button (never a submit). Returns whether it clicked. */
+  window.__smartApplyNext = () => {
+    detectButtons(); // (re)tag the current next button
+    const btn = clickable().find((b) => b.dataset?.saNext === "1");
+    if (btn) { btn.click(); return true; }
+    return false;
+  };
+
   // Keep cached state fresh.
   chrome.storage.local.get(["learned", "hubUrl"]).then(({ learned: l, hubUrl: h }) => {
     if (l) learned = l;

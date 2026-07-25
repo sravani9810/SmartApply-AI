@@ -7,6 +7,17 @@ export const DEFAULT_SETTINGS = {
   autofillOnOpen: true,
   /** Learn answers from what you type on application forms, for next time. */
   learningEnabled: true,
+  /**
+   * Reasoning engine for the Auto-pilot's unknown fields:
+   *   "auto"   — fast local model first (Chrome built-in → Ollama), then Claude
+   *   "ollama" — local Ollama (Gemma) only
+   *   "chrome" — Chrome built-in (Gemini Nano) only
+   *   "claude" — Claude via the Hub only (highest quality, needs the Hub online)
+   */
+  reasonerBackend: "auto",
+  /** Local Ollama endpoint + model for the "ollama"/"auto" engines. */
+  ollamaUrl: "http://localhost:11434",
+  ollamaModel: "gemma2:2b",
 };
 
 export async function loadSettings() {

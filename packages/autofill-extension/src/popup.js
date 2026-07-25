@@ -114,6 +114,62 @@ $("clearLearned").addEventListener("click", async () => {
   statusEl.textContent = "Cleared learned answers.";
 });
 
+/* ---------- Auto-pilot ---------- */
+
+function setAutopilotRunning(running) {
+  $("autopilot").hidden = running;
+  $("autopilotStop").hidden = !running;
+}
+
+function renderAutopilot(state, running) {
+  setAutopilotRunning(running);
+  const el = $("autopilotProgress");
+  if (!state) { el.textContent = ""; return; }
+  const icon = { "ready-to-submit": "✅", "needs-input": "✋", stuck: "⚠️", "no-form": "∅",
+    error: "⚠️", stopped: "⏹", "max-steps": "⚠️", done: "✅" }[state.result?.status] || (running ? "⏳" : "");
+  el.textContent = `${icon} ${state.message || ""}`.trim();
+}
+
+$("autopilot").addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) { statusEl.textContent = "No active tab."; return; }
+  const profile = await loadProfile();
+  if (Object.values(profile).filter(Boolean).length === 0) {
+    statusEl.textContent = "No personal info yet — click “Sync personal info from Hub”.";
+    return;
+  }
+  setAutopilotRunning(true);
+  $("autopilotProgress").textContent = "⏳ Starting…";
+  const res = await chrome.runtime.sendMessage({ type: "autopilot:start", tabId: tab.id });
+  if (!res?.ok) {
+    setAutopilotRunning(false);
+    $("autopilotProgress").textContent = `⚠️ ${res?.error || "Couldn't start."}`;
+  }
+});
+
+$("autopilotStop").addEventListener("click", async () => {
+  await chrome.runtime.sendMessage({ type: "autopilot:stop" });
+  $("autopilotProgress").textContent = "⏹ Stopping…";
+});
+
+// Live progress pushed from the background loop.
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type === "autopilot:progress") renderAutopilot(msg.state, msg.state?.running);
+});
+
+/* ---------- reasoner engine settings ---------- */
+
+function syncOllamaVisibility(backend) {
+  $("ollamaOpts").style.display = backend === "ollama" || backend === "auto" ? "" : "none";
+}
+
+$("reasonerBackend").addEventListener("change", async (e) => {
+  await updateSetting({ reasonerBackend: e.target.value });
+  syncOllamaVisibility(e.target.value);
+});
+$("ollamaUrl").addEventListener("change", (e) => updateSetting({ ollamaUrl: e.target.value.trim() }));
+$("ollamaModel").addEventListener("change", (e) => updateSetting({ ollamaModel: e.target.value.trim() }));
+
 /* ---------- connectivity status ---------- */
 
 function setDot(dotId, labelId, online, name, reason) {
@@ -419,6 +475,10 @@ $("fillClaude").addEventListener("click", async () => {
   const s = await loadSettings();
   $("autofillOnOpen").checked = s.autofillOnOpen;
   $("learnToggle").checked = s.learningEnabled;
+  $("reasonerBackend").value = s.reasonerBackend;
+  $("ollamaUrl").value = s.ollamaUrl;
+  $("ollamaModel").value = s.ollamaModel;
+  syncOllamaVisibility(s.reasonerBackend);
   await showProfileInfo();
   await showLearnedCount();
   $("hubUrl").value = await getHubUrl();
@@ -426,4 +486,7 @@ $("fillClaude").addEventListener("click", async () => {
   statuses = await getStatuses();
   await refreshCurrentJob();
   refreshHealth(); // async, updates the dots when it resolves
+  // Restore any Auto-pilot progress (it runs in the background, popup may reopen).
+  const ap = await chrome.runtime.sendMessage({ type: "autopilot:state" }).catch(() => null);
+  if (ap) renderAutopilot(ap.state, ap.running);
 })();

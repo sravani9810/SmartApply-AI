@@ -201,6 +201,36 @@
         <button id="clearLearned" class="btn-ghost">Clear learned answers</button>
       </div>
 
+      <hr />
+
+      <h2>Auto-pilot</h2>
+      <div class="muted" style="font-size:11.5px;">
+        Fills every field and clicks <b>Next</b> through each page on its own, using a fast
+        local model with Claude as backup. It always stops at the final <b>Submit</b> for you.
+      </div>
+      <div class="row">
+        <button id="autopilot" class="btn-primary">🚀 Run Auto-pilot</button>
+        <button id="autopilotStop" class="btn-danger" hidden>■ Stop</button>
+      </div>
+      <div id="autopilotProgress" class="muted" style="font-size:11.5px; margin-top:6px;"></div>
+
+      <details>
+        <summary>Auto-pilot engine</summary>
+        <label>Reasoning engine</label>
+        <select id="reasonerBackend">
+          <option value="auto">Auto — local first, Claude backup (recommended)</option>
+          <option value="ollama">Ollama (Gemma) — local only</option>
+          <option value="chrome">Chrome built-in (Gemini Nano) — local only</option>
+          <option value="claude">Claude via Hub — only</option>
+        </select>
+        <div id="ollamaOpts">
+          <label>Ollama URL</label>
+          <input type="text" id="ollamaUrl" placeholder="http://localhost:11434" />
+          <label>Ollama model</label>
+          <input type="text" id="ollamaModel" placeholder="gemma2:2b" />
+        </div>
+      </details>
+
       <div id="status"></div>
     </div>
     <script type="module" src="popup.js"></script>
