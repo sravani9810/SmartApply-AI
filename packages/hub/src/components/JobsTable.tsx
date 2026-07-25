@@ -107,6 +107,7 @@ export function JobsTable({ jobs }: { jobs: JobRow[] }) {
                 <div className="rowacts">
                   <button className="iconbtn apply" title="Mark applied" onClick={() => row(j.id, "applied")} disabled={pending}>✓</button>
                   <button className="iconbtn nope" title="Not applying" onClick={() => row(j.id, "not-applying")} disabled={pending}>✕</button>
+                  <Link href={`/build?jobId=${j.id}`} title="Compose & edit résumé for this job" className="muted">✎ résumé</Link>
                   {j.url ? <a href={j.url} target="_blank" rel="noreferrer" className="muted">open ↗</a> : null}
                 </div>
               </td>

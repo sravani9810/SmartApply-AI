@@ -60,12 +60,15 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         Claude selects &amp; orders your approved bullets for this JD (on your subscription;
         falls back to tag ranking if not signed in). It never fabricates experience.
       </p>
-      <form action={tailorJob.bind(null, id)} className="row">
-        <select className="status" name="flavorId" defaultValue={tailoring?.resumeId ? undefined : flavors[0]?.id}>
-          {flavors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-        </select>
-        <button className="btn" type="submit">Tailor →</button>
-      </form>
+      <div className="row" style={{ gap: 10, alignItems: "center" }}>
+        <form action={tailorJob.bind(null, id)} className="row">
+          <select className="status" name="flavorId" defaultValue={tailoring?.resumeId ? undefined : flavors[0]?.id}>
+            {flavors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+          <button className="btn" type="submit">Tailor →</button>
+        </form>
+        <Link className="btn on" href={`/build?jobId=${id}`}>✦ Compose &amp; edit for this job</Link>
+      </div>
 
       {match ? (
         <div className="panel" style={{ marginTop: 14, padding: "14px 18px" }}>

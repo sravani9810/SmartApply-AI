@@ -49,6 +49,7 @@ export default async function ResumePage({ params }: { params: Promise<{ id: str
         initialData={resume.data}
         initialState={initialState}
         initialLog={initialLog}
+        initialLabel={resume.label || "Tailored résumé"}
         jd={resume.jd ?? undefined}
         flavorId={resume.flavorId ?? undefined}
         targetRole={resume.targetRole ?? undefined}

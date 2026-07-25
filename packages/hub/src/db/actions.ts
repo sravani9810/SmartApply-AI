@@ -270,6 +270,154 @@ export async function setJobStatus(jobId: string, formData: FormData) {
   revalidatePath("/");
 }
 
+// ── Résumé: direct save / rename / find / load / link ───────────────────────
+
+/**
+ * Persist an inline-edited résumé's data (and optionally its label) directly —
+ * no recompose. This is the "save my in-hub edits" path, distinct from
+ * composeResumeAction which reselects bullets from the library via Claude.
+ */
+export async function saveResumeData(
+  resumeId: string,
+  data: import("@smartapply/shared").ResumeData,
+  label?: string,
+): Promise<{ ok: boolean; error?: string; resumeId?: string }> {
+  const existing = db.select().from(s.resumes).where(eq(s.resumes.id, resumeId)).get();
+  if (!existing) return { ok: false, error: "résumé not found" };
+  const clean = label?.trim();
+  db.update(s.resumes)
+    .set({ resumeData: data as never, ...(clean ? { label: clean } : {}) })
+    .where(eq(s.resumes.id, resumeId))
+    .run();
+  revalidatePath(`/resumes/${resumeId}`);
+  revalidatePath("/resumes");
+  return { ok: true, resumeId };
+}
+
+/** Rename a résumé's library label. */
+export async function renameResume(resumeId: string, label: string): Promise<{ ok: boolean; error?: string }> {
+  const l = label.trim();
+  if (!l) return { ok: false, error: "name required" };
+  const existing = db.select().from(s.resumes).where(eq(s.resumes.id, resumeId)).get();
+  if (!existing) return { ok: false, error: "résumé not found" };
+  db.update(s.resumes).set({ label: l }).where(eq(s.resumes.id, resumeId)).run();
+  revalidatePath(`/resumes/${resumeId}`);
+  revalidatePath("/resumes");
+  return { ok: true };
+}
+
+/** Create a new library entry from explicit ResumeData (Save-as-new from the composer). */
+export async function createResumeFromData(input: {
+  data: import("@smartapply/shared").ResumeData;
+  label?: string;
+  company?: string;
+  domain?: string;
+  technologies?: string[];
+  targetRole?: string;
+  jd?: string;
+  usedClaude?: boolean;
+}): Promise<{ ok: boolean; error?: string; resumeId?: string }> {
+  const id = crypto.randomUUID();
+  db.insert(s.resumes).values({
+    id,
+    flavorId: null,
+    resumeData: input.data as never,
+    label: input.label?.trim() || "Résumé",
+    jd: input.jd?.trim() || null,
+    company: input.company || null,
+    domain: input.domain || null,
+    technologies: input.technologies ?? null,
+    targetRole: input.targetRole || null,
+    usedClaude: input.usedClaude ?? false,
+  }).run();
+  revalidatePath("/resumes");
+  return { ok: true, resumeId: id };
+}
+
+export interface FindResumesResult {
+  ok: boolean;
+  error?: string;
+  results: import("../lib/findResumes").FoundResume[];
+}
+
+/** Find existing résumés best matching a JD (deterministic keyword/tech overlap). */
+export async function findResumesAction(jd: string): Promise<FindResumesResult> {
+  try {
+    const { findResumesForJd } = await import("../lib/findResumes");
+    return { ok: true, results: findResumesForJd(jd ?? "", 8) };
+  } catch (err) {
+    logError("find", err);
+    return { ok: false, error: (err as Error).message, results: [] };
+  }
+}
+
+export interface LoadResumeResult {
+  ok: boolean;
+  error?: string;
+  resumeId?: string;
+  data?: import("@smartapply/shared").ResumeData;
+  state?: ComposeState;
+  instructionsLog?: string[];
+  label?: string;
+  meta?: { company: string; domain: string; technologies: string[]; targetRole: string };
+  jd?: string;
+  flavorId?: string;
+}
+
+/** Load a saved résumé's data + refinable state for the composer editor. */
+export async function loadResumeAction(resumeId: string): Promise<LoadResumeResult> {
+  const r = db.select().from(s.resumes).where(eq(s.resumes.id, resumeId)).get();
+  if (!r) return { ok: false, error: "résumé not found" };
+  const data = r.resumeData as import("@smartapply/shared").ResumeData;
+  const { deriveState } = await import("../lib/compose");
+  const state = deriveState(data);
+  const log = (r.instructions ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+  return {
+    ok: true,
+    resumeId: r.id,
+    data,
+    state,
+    instructionsLog: log,
+    label: r.label ?? "Résumé",
+    meta: {
+      company: r.company ?? "",
+      domain: r.domain ?? "",
+      technologies: (r.technologies as string[] | null) ?? [],
+      targetRole: r.targetRole ?? "",
+    },
+    jd: r.jd ?? undefined,
+    flavorId: r.flavorId ?? undefined,
+  };
+}
+
+/**
+ * Link a résumé to a job by upserting its application row so the job page shows
+ * the résumé and the dashboard row reflects that you've started applying.
+ */
+export async function linkResumeToJob(resumeId: string, jobId: string): Promise<{ ok: boolean; error?: string }> {
+  const job = db.select().from(s.jobs).where(eq(s.jobs.id, jobId)).get();
+  if (!job) return { ok: false, error: "job not found" };
+  const existing = db.select().from(s.applications).where(eq(s.applications.jobId, jobId)).get();
+  if (existing) {
+    db.update(s.applications).set({ resumeId }).where(eq(s.applications.id, existing.id)).run();
+  } else {
+    db.insert(s.applications).values({
+      id: crypto.randomUUID(),
+      jobId,
+      resumeId,
+      status: "in-progress",
+    }).run();
+  }
+  // Reflect "started applying" on the job row if it was still untouched.
+  if (job.status === "new") {
+    db.update(s.jobs).set({ status: "in-progress" }).where(eq(s.jobs.id, jobId)).run();
+  }
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath("/");
+  revalidatePath("/applications");
+  return { ok: true };
+}
+
 /** Auto-tag a job from its description (explicit half of Phase-4 matching). */
 export async function analyzeJob(jobId: string) {
   const job = db.select().from(s.jobs).where(eq(s.jobs.id, jobId)).get();
