@@ -11,6 +11,9 @@
   // Learned answers ({ normalizedLabel: value }) and settings, cached here and
   // kept fresh via storage change events.
   let learned = {};
+  // Curated answer bank (AnswerEntry[]) from the Options page — see
+  // @smartapply/shared. Takes priority over learned when filling.
+  let answers = [];
   let learningEnabled = true;
   let isAppPage = false; // gate learning to application-like pages
   let hubUrl = "http://localhost:3100"; // where learned answers are recorded
@@ -56,6 +59,43 @@
   const CONSENT_RE = /agree|terms|privacy|consent|subscribe|newsletter|opt.?in|acknowledge|certify/i;
 
   const norm = (s) => (s || "").replace(/[\s*:_-]+/g, " ").trim().toLowerCase();
+
+  // True while this content script can still reach the extension APIs. After the
+  // extension is reloaded or updated, content scripts already running in open
+  // tabs are orphaned and any chrome.* call throws "Extension context
+  // invalidated" / "receiving end does not exist". Guard storage access with it.
+  const extAlive = () => {
+    try {
+      return Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
+  };
+
+  const AFFIRMATIVE_RE = /^(yes|true|checked)$/i;
+
+  /**
+   * Best curated answer whose question/aliases match a field's label, scored by
+   * the longest matched phrase (more specific wins). `types` limits which entry
+   * kinds are eligible (e.g. ["radio"] when filling a radio group).
+   */
+  function matchAnswer(label, types, entries = answers) {
+    const L = norm(label);
+    if (!L || !Array.isArray(entries)) return null;
+    let best = null;
+    let bestLen = 0;
+    for (const e of entries) {
+      if (!e || !types.includes(e.type) || !e.value) continue;
+      const needles = [e.question, ...(e.aliases || [])].map(norm).filter(Boolean);
+      for (const n of needles) {
+        if ((L.includes(n) || n.includes(L)) && n.length > bestLen) {
+          best = e;
+          bestLen = n.length;
+        }
+      }
+    }
+    return best;
+  }
 
   function valueFor(profile, field) {
     if (field === "fullName" && !profile.fullName) {
@@ -147,8 +187,11 @@
     el.type !== "file" &&
     el.offsetParent !== null;
 
-  /** Fill text/textarea/select from the profile, falling back to learned answers. */
-  function fillForm(profile, learnedMap = learned) {
+  /**
+   * Fill text/textarea/select. Precedence per field: profile field match ->
+   * curated answer bank -> auto-learned answers.
+   */
+  function fillForm(profile, learnedMap = learned, answerList = answers) {
     let filled = 0;
     for (const el of deepFields()) {
       if (!fillable(el) || isChoice(el)) continue;
@@ -156,10 +199,12 @@
       if (!isSelect && el.value.trim()) continue;
       const field = fieldFor(el);
       let value = field ? valueFor(profile, field) : "";
-      if (!value && learnedMap) {
-        const k = humanLabel(el);
-        if (k && learnedMap[k]) value = learnedMap[k];
+      const label = humanLabel(el);
+      if (!value) {
+        const entry = matchAnswer(label, isSelect ? ["select", "text"] : ["text", "textarea"], answerList);
+        if (entry) value = entry.value;
       }
+      if (!value && learnedMap && label && learnedMap[label]) value = learnedMap[label];
       if (!value) continue;
       if (isSelect) {
         if (el.value) continue;
@@ -208,8 +253,10 @@
     return "";
   }
 
-  /** Select radio options from the profile / learned answers; tick yes checkboxes. */
-  function fillChoices(profile, learnedMap = learned) {
+  /** Select radio options and tick affirmative checkboxes. Precedence per group:
+   *  profile field -> curated answer bank -> learned. Consent boxes are never
+   *  auto-ticked. */
+  function fillChoices(profile, learnedMap = learned, answerList = answers) {
     let filled = 0;
     const radioGroups = new Map();
     const checkboxes = [];
@@ -229,6 +276,10 @@
       const question = group.map(groupQuestion).find(Boolean) || "";
       const field = choiceFieldFor(question);
       let answer = field ? (profile[field] ?? "").toLowerCase() : "";
+      if (!answer) {
+        const entry = matchAnswer(question, ["radio"], answerList);
+        if (entry) answer = entry.value.toLowerCase();
+      }
       if (!answer && learnedMap) {
         const k = norm(question);
         if (k && learnedMap[k]) answer = String(learnedMap[k]).toLowerCase();
@@ -251,7 +302,14 @@
       if (CONSENT_RE.test(context)) continue; // never auto-accept consent/terms
       const field = choiceFieldFor(context);
       const answer = (profile[field] ?? "").toLowerCase();
-      if (field && answer === "yes" && /\byes\b|authorized|eligible/.test(optionLabel(el))) {
+      let tick =
+        field && answer === "yes" && /\byes\b|authorized|eligible/.test(optionLabel(el));
+      if (!tick) {
+        // Curated checkbox entry: only tick on an explicit affirmative value.
+        const entry = matchAnswer(context, ["checkbox"], answerList);
+        tick = Boolean(entry && AFFIRMATIVE_RE.test(entry.value.trim()));
+      }
+      if (tick) {
         el.checked = true;
         el.dispatchEvent(new Event("change", { bubbles: true }));
         filled++;
@@ -326,7 +384,7 @@
 
   // --- Learn what you type on application forms ---
   async function remember(el) {
-    if (!learningEnabled || !el || el.disabled) return;
+    if (!learningEnabled || !el || el.disabled || !extAlive()) return;
     if (!isAppPage) {
       if (looksLikeApplicationForm()) isAppPage = true;
       else return;
@@ -349,37 +407,47 @@
       return; // don't learn checkboxes (avoid auto-accepting consent later)
     }
     if (!key || !val) return;
-    const { learned: cur = {} } = await chrome.storage.local.get("learned");
-    if (cur[key] === val) { clearHighlight(el); return; }
-    cur[key] = val;
-    learned = cur;
-    await chrome.storage.local.set({ learned: cur });
-    clearHighlight(el); // it's answered now
-    postLearnedToHub(key, val); // record it in the hub for next time
+    try {
+      const { learned: cur = {} } = await chrome.storage.local.get("learned");
+      if (cur[key] === val) { clearHighlight(el); return; }
+      cur[key] = val;
+      learned = cur;
+      await chrome.storage.local.set({ learned: cur });
+      clearHighlight(el); // it's answered now
+      postLearnedToHub(key, val); // record it in the hub for next time
+    } catch {
+      // Extension reloaded/updated: this stale script can't reach storage. A
+      // fresh content script is injected on the next page load — ignore.
+    }
   }
   document.addEventListener("change", (e) => remember(e.target), true);
   // Clear the "fill me" highlight as soon as the user starts typing.
   document.addEventListener("input", (e) => { if (e.target?.value) clearHighlight(e.target); }, true);
 
-  // Entry point the popup calls via chrome.scripting.executeScript.
-  window.__smartApplyFill = (profile, learnedMap, submit) => {
-    const map = learnedMap || learned;
-    const filled = fillForm(profile, map) + fillChoices(profile, map);
-    const unknown = markUnknowns(profile, map);
+  // Entry point the popup calls via chrome.scripting.executeScript. The popup
+  // passes learned + answers explicitly (this freshly-injected script may not
+  // have finished its async storage load yet).
+  window.__smartApplyFill = (profile, learnedMap, answerList, submit) => {
+    const l = learnedMap || learned;
+    const a = answerList || answers;
+    const filled = fillForm(profile, l, a) + fillChoices(profile, l, a);
+    const unknown = markUnknowns(profile, l);
     return { filled, unknown, submitted: submit ? submitForm() : false };
   };
 
-  // Keep cached state fresh.
-  chrome.storage.local.get(["learned", "hubUrl"]).then(({ learned: l, hubUrl: h }) => {
+  // Keep cached state fresh. Ignore rejections (an orphaned script post-reload).
+  chrome.storage.local.get(["learned", "answers", "hubUrl"]).then(({ learned: l, answers: a, hubUrl: h }) => {
     if (l) learned = l;
+    if (Array.isArray(a)) answers = a;
     if (h) hubUrl = h;
-  });
+  }).catch(() => {});
   chrome.storage.sync.get("settings").then(({ settings }) => {
     learningEnabled = settings?.learningEnabled ?? true;
-  });
+  }).catch(() => {});
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.learned) learned = changes.learned.newValue || {};
     if (area === "local" && changes.hubUrl) hubUrl = changes.hubUrl.newValue || hubUrl;
+    if (area === "local" && changes.answers) answers = changes.answers.newValue || [];
     if (area === "sync" && changes.settings) {
       learningEnabled = changes.settings.newValue?.learningEnabled ?? true;
     }
@@ -387,11 +455,17 @@
 
   // --- Auto-fill when an application page opens ---
   (async function autoFillOnOpen() {
-    const [{ settings, profile }, { learned: l, hubUrl: h }] = await Promise.all([
-      chrome.storage.sync.get(["settings", "profile"]),
-      chrome.storage.local.get(["learned", "hubUrl"]),
-    ]);
+    let settings, profile, l, a, h;
+    try {
+      [{ settings, profile }, { learned: l, answers: a, hubUrl: h }] = await Promise.all([
+        chrome.storage.sync.get(["settings", "profile"]),
+        chrome.storage.local.get(["learned", "answers", "hubUrl"]),
+      ]);
+    } catch {
+      return; // orphaned script (extension reloaded) — nothing to fill with
+    }
     if (l) learned = l;
+    if (Array.isArray(a)) answers = a;
     if (h) hubUrl = h;
     learningEnabled = settings?.learningEnabled ?? true;
     if (!(settings?.autofillOnOpen ?? true) || !profile) return;

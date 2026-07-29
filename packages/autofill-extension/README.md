@@ -77,6 +77,28 @@ It fills **only empty fields** (never overwrites what you typed) and matches by
 each field's name/id/label/placeholder/aria-label, setting values in a way
 React/Vue controlled inputs detect.
 
+## Answer bank & Options page
+
+Beyond the fixed profile fields, you can curate a **question → answer bank** for
+the free-form things applications ask (notice period, salary expectation,
+sponsorship, "how did you hear about us"). Open the **Options page** — the
+popup's *Manage answer bank & profile…* button, or `chrome://extensions` →
+Details → Extension options — to edit it.
+
+- Each entry has a **question**, optional **aliases** (so one entry matches many
+  form phrasings), a **type** (`text`/`textarea`/`select`/`radio`/`checkbox`), a
+  **value**, and optional **options**. When filling, precedence is
+  **profile field → answer bank → learned answer**; the longest-matching
+  question/alias wins.
+- Consent/terms boxes are **never** auto-ticked — a curated checkbox is ticked
+  only on an explicit affirmative value.
+- **Export / Import `answers.json`** — the whole thing (profile + answers) is one
+  `AnswerBank` file (`@smartapply/shared`). Export saves it into your repo's
+  `data/` folder; Import loads it back. A browser extension can't read a repo
+  file directly, so this is the sync path — same as `jobs-export.json`.
+  `data/answers.json` is gitignored; start from the committed
+  `data/answers.sample.json`.
+
 ### Two hard limits (browser rules, not bugs)
 
 - **Resume upload can't be automated.** Browsers forbid setting a file input's
@@ -86,9 +108,12 @@ React/Vue controlled inputs detect.
 
 ### Files
 
-- **`content.js`** — the filler (matchers, auto-fill-on-open, form detection).
+- **`content.js`** — the filler (matchers, answer-bank matching,
+  auto-fill-on-open, form detection).
 - **`popup.html` / `popup.js`** — profile editor, auto-fill toggle, Fill/Submit,
-  and the job-context panel.
+  the job-context panel, and the Options-page link.
+- **`options.html` / `options.js`** — full-tab profile + answer-bank editor with
+  `answers.json` import/export.
 - **`background.js`** — seeds settings and relays autofill requests.
 - **`jobs.js`** — job store: import/load jobs, match the current URL, track status.
 

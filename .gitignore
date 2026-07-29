@@ -7,6 +7,9 @@ dist/
 .env.local
 *.xlsx
 
+# Personal answer bank (import the committed answers.sample.json instead)
+data/answers.json
+
 # Chrome extension build
 packages/autofill-extension/dist/
 
