@@ -227,10 +227,12 @@
           <option value="claude">Claude via Hub — only</option>
         </select>
         <div id="ollamaOpts">
-          <label>Ollama URL</label>
-          <input type="text" id="ollamaUrl" placeholder="http://localhost:11434" />
           <label>Ollama model</label>
           <input type="text" id="ollamaModel" placeholder="gemma3:1b" />
+          <div class="muted" style="font-size:11px; margin-top:4px;">
+            Runs through the Hub — Ollama refuses extension origins. Point it
+            elsewhere with <b>OLLAMA_URL</b> in the Hub's .env.
+          </div>
         </div>
       </details>
 

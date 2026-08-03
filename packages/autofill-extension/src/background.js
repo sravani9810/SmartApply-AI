@@ -9,7 +9,6 @@ const DEFAULT_SETTINGS = {
   autofillOnOpen: true,
   learningEnabled: true,
   reasonerBackend: "auto", // auto | ollama | chrome | claude
-  ollamaUrl: "http://localhost:11434",
   ollamaModel: "gemma3:1b",
 };
 
@@ -21,6 +20,25 @@ chrome.runtime.onInstalled.addListener(async () => {
 // --- Auto-pilot job state ---------------------------------------------------
 
 let job = null; // { tabId, stop } while running, else null
+
+// MV3 shuts down an idle service worker after ~30s. The Auto-pilot loop runs
+// detached and can sit far longer than that inside a single model call, which
+// would kill the run mid-flight with no error and no final state — the popup
+// just stays on its last message. Calling any extension API resets that idle
+// timer, so ping one harmlessly while a job is in flight.
+let keepAlive = null;
+
+function startKeepAlive() {
+  if (keepAlive) return;
+  keepAlive = setInterval(() => {
+    chrome.runtime.getPlatformInfo().catch(() => {});
+  }, 20000);
+}
+
+function stopKeepAlive() {
+  if (keepAlive) clearInterval(keepAlive);
+  keepAlive = null;
+}
 
 /** Persist the latest state so a reopened popup can render current progress. */
 async function setState(patch) {
@@ -52,6 +70,7 @@ async function startAutopilot(tabId) {
   });
 
   // Run detached; report terminal result when it resolves.
+  startKeepAlive();
   (async () => {
     let result;
     try {
@@ -67,6 +86,7 @@ async function startAutopilot(tabId) {
       alog("error", "autopilot", "crashed", { error: err.message });
     }
     job = null;
+    stopKeepAlive();
     await setState({ running: false, phase: "done", message: result.message, result });
     const level = ["error", "stuck", "max-steps"].includes(result.status) ? "warn" : "info";
     alog(level, "autopilot", `■ done: ${result.status}`, { message: result.message, filled: result.filled });
@@ -82,25 +102,27 @@ function stopAutopilot() {
 
 // --- Model connectivity probes (run here so they match where the reasoner runs) -
 
-/** Is the local Ollama server up, and is the configured model pulled? */
+/**
+ * Is the local model reachable and pulled? Asked via the hub, because Ollama
+ * answers chrome-extension:// origins with a 403 — the same reason the reasoner
+ * proxies its completions. If the hub is down we can't know, so report "off".
+ */
 async function checkOllama(settings) {
-  const url = (settings.ollamaUrl || "http://localhost:11434").replace(/\/+$/, "");
+  const { hubUrl } = await chrome.storage.local.get("hubUrl");
+  const base = (hubUrl || "http://localhost:3100").replace(/\/+$/, "");
   const want = settings.ollamaModel || "gemma3:1b";
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 3000);
+  const timer = setTimeout(() => ctrl.abort(), 5000);
   try {
-    const res = await fetch(`${url}/api/tags`, { signal: ctrl.signal });
+    const res = await fetch(`${base}/api/local-model?model=${encodeURIComponent(want)}`, {
+      signal: ctrl.signal,
+    });
     clearTimeout(timer);
-    if (!res.ok) return { state: "off", reason: `Ollama HTTP ${res.status}` };
-    const models = ((await res.json()).models || []).map((m) => m.name);
-    const base = want.split(":")[0];
-    const has = models.some((n) => n === want || n.split(":")[0] === base);
-    return has
-      ? { state: "on", reason: `${want} ready` }
-      : { state: "warn", reason: `Ollama up, but ${want} not pulled (run: ollama pull ${want})` };
+    if (!res.ok) return { state: "off", reason: `hub HTTP ${res.status}` };
+    return await res.json();
   } catch {
     clearTimeout(timer);
-    return { state: "off", reason: `Ollama not reachable at ${url}` };
+    return { state: "off", reason: "hub unreachable — local model status unknown" };
   }
 }
 

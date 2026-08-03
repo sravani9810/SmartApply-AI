@@ -25,7 +25,6 @@ export const DEFAULT_SETTINGS = {
    * model here; the reasoner sends `think: false` so reasoning models answer
    * directly instead of thinking first.
    */
-  ollamaUrl: "http://localhost:11434",
   ollamaModel: "gemma3:1b",
 };
 

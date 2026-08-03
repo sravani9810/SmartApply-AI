@@ -115,21 +115,24 @@ function withTimeout(ms) {
 
 // ---- Backend: Ollama (local Gemma) -----------------------------------------
 
+// Goes through the hub, not straight to :11434. Ollama refuses
+// chrome-extension:// origins with a 403; the hub is a server and is not
+// subject to that check. The hub owns the Ollama endpoint (OLLAMA_URL), so
+// only the model name travels from here.
 async function ollamaAnswer(fields, ctx, settings) {
-  const url = (settings.ollamaUrl || "http://localhost:11434").replace(/\/+$/, "");
+  const base = (ctx.hubUrl || "http://localhost:3100").replace(/\/+$/, "");
   const model = settings.ollamaModel || "gemma3:1b";
   // Roomy enough for a small model's cold load (and a warm large one), but
   // short enough that a wedged backend escalates to Claude rather than
   // stalling the Auto-pilot.
   const t = withTimeout(90000);
   try {
-    const res = await fetch(`${url}/api/chat`, {
+    const res = await fetch(`${base}/api/local-model`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: t.signal,
       body: JSON.stringify({
         model,
-        stream: false,
         format: "json",
         // Reasoning models (gemma4) otherwise emit a long chain-of-thought
         // before answering — minutes per step for no gain on this task.
@@ -145,9 +148,10 @@ async function ollamaAnswer(fields, ctx, settings) {
         ],
       }),
     });
-    if (!res.ok) throw new Error(`ollama ${res.status}`);
+    if (!res.ok) throw new Error(`hub local-model ${res.status}`);
     const j = await res.json();
-    return parseAnswers(j?.message?.content || "", fields);
+    if (!j?.ok) throw new Error(j?.error || "local model unavailable");
+    return parseAnswers(j.content || "", fields);
   } finally {
     t.done();
   }
@@ -155,14 +159,36 @@ async function ollamaAnswer(fields, ctx, settings) {
 
 // ---- Backend: Chrome built-in (Gemini Nano) --------------------------------
 
+/** Reject after `ms` so a hung built-in call escalates instead of stalling. */
+function raceTimeout(promise, ms, label) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label)), ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 async function chromeAnswer(fields, ctx) {
   const LM = globalThis.LanguageModel;
-  if (!LM) throw new Error("chrome built-in AI unavailable");
-  const avail = await LM.availability?.();
-  if (avail === "unavailable") throw new Error("chrome built-in AI unavailable");
-  const session = await LM.create({ initialPrompts: [{ role: "system", content: SYSTEM }] });
+  if (!LM?.availability) throw new Error("chrome built-in AI unavailable");
+
+  const avail = await raceTimeout(LM.availability(), 5000, "chrome availability timed out");
+  // Only "available" is safe to use. "downloadable"/"downloading" mean
+  // LM.create() would block on a multi-GB Gemini Nano download — mid-application
+  // is the wrong moment for that, so fall through to the next backend instead.
+  if (avail !== "available") throw new Error(`chrome built-in AI ${avail || "unavailable"}`);
+
+  const session = await raceTimeout(
+    LM.create({ initialPrompts: [{ role: "system", content: SYSTEM }] }),
+    15000,
+    "chrome session create timed out",
+  );
   try {
-    const text = await session.prompt(buildUserPrompt(fields, ctx));
+    const text = await raceTimeout(
+      session.prompt(buildUserPrompt(fields, ctx)),
+      45000,
+      "chrome prompt timed out",
+    );
     return parseAnswers(text, fields);
   } finally {
     session.destroy?.();

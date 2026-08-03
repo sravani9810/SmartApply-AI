@@ -171,7 +171,6 @@ $("reasonerBackend").addEventListener("change", async (e) => {
   await updateSetting({ reasonerBackend: e.target.value });
   syncOllamaVisibility(e.target.value);
 });
-$("ollamaUrl").addEventListener("change", (e) => updateSetting({ ollamaUrl: e.target.value.trim() }));
 $("ollamaModel").addEventListener("change", (e) => updateSetting({ ollamaModel: e.target.value.trim() }));
 
 /* ---------- connectivity status ---------- */
@@ -497,7 +496,6 @@ $("fillClaude").addEventListener("click", async () => {
   $("autofillOnOpen").checked = s.autofillOnOpen;
   $("learnToggle").checked = s.learningEnabled;
   $("reasonerBackend").value = s.reasonerBackend;
-  $("ollamaUrl").value = s.ollamaUrl;
   $("ollamaModel").value = s.ollamaModel;
   syncOllamaVisibility(s.reasonerBackend);
   await showProfileInfo();
