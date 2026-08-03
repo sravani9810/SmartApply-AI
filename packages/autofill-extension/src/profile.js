@@ -15,9 +15,18 @@ export const DEFAULT_SETTINGS = {
    *   "claude" — Claude via the Hub only (highest quality, needs the Hub online)
    */
   reasonerBackend: "auto",
-  /** Local Ollama endpoint + model for the "ollama"/"auto" engines. */
+  /**
+   * Local Ollama endpoint + model for the "ollama"/"auto" engines.
+   * gemma3:1b is the default because this backend sits on the hot path: it
+   * answers a form step in ~1-2s once resident (~20s on the first, cold call),
+   * where a large reasoning model like gemma4 takes ~45s+ per step. The
+   * trade-off is accuracy — small models do misread fields, and on the "auto"
+   * engine whatever this answers never escalates to Claude. Set any pulled
+   * model here; the reasoner sends `think: false` so reasoning models answer
+   * directly instead of thinking first.
+   */
   ollamaUrl: "http://localhost:11434",
-  ollamaModel: "gemma2:2b",
+  ollamaModel: "gemma3:1b",
 };
 
 export async function loadSettings() {

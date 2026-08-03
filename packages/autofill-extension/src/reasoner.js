@@ -89,9 +89,22 @@ function parseAnswers(text, fields) {
   const valid = new Set(fields.map((f) => f.key));
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
-    if (valid.has(k) && typeof v === "string" && v.trim()) out[k] = v.trim();
+    if (valid.has(k) && typeof v === "string" && v.trim() && !isNonAnswer(v)) out[k] = v.trim();
   }
   return out;
+}
+
+// Models are told to return "" when they can't answer; smaller ones often write
+// a placeholder instead. Typing "Unanswerable" into an application is worse than
+// leaving the field blank, so treat these as no answer.
+const NON_ANSWERS = new Set([
+  "unanswerable", "unknown", "n/a", "na", "none", "not applicable", "not specified",
+  "not provided", "not available", "no answer", "null", "undefined", "-", "--",
+  "no information", "not mentioned", "insufficient information", "cannot answer",
+]);
+
+function isNonAnswer(v) {
+  return NON_ANSWERS.has(v.trim().toLowerCase().replace(/[.!]+$/, ""));
 }
 
 function withTimeout(ms) {
@@ -104,8 +117,11 @@ function withTimeout(ms) {
 
 async function ollamaAnswer(fields, ctx, settings) {
   const url = (settings.ollamaUrl || "http://localhost:11434").replace(/\/+$/, "");
-  const model = settings.ollamaModel || "gemma2:2b";
-  const t = withTimeout(30000);
+  const model = settings.ollamaModel || "gemma3:1b";
+  // Roomy enough for a small model's cold load (and a warm large one), but
+  // short enough that a wedged backend escalates to Claude rather than
+  // stalling the Auto-pilot.
+  const t = withTimeout(90000);
   try {
     const res = await fetch(`${url}/api/chat`, {
       method: "POST",
@@ -115,6 +131,13 @@ async function ollamaAnswer(fields, ctx, settings) {
         model,
         stream: false,
         format: "json",
+        // Reasoning models (gemma4) otherwise emit a long chain-of-thought
+        // before answering — minutes per step for no gain on this task.
+        // Ignored by models that don't support thinking.
+        think: false,
+        // Keep the model resident between steps so only the first call pays
+        // the load cost; an application form is many calls in a row.
+        keep_alive: "10m",
         options: { temperature: 0 },
         messages: [
           { role: "system", content: SYSTEM },

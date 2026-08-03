@@ -10,7 +10,7 @@ const DEFAULT_SETTINGS = {
   learningEnabled: true,
   reasonerBackend: "auto", // auto | ollama | chrome | claude
   ollamaUrl: "http://localhost:11434",
-  ollamaModel: "gemma2:2b",
+  ollamaModel: "gemma3:1b",
 };
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -85,7 +85,7 @@ function stopAutopilot() {
 /** Is the local Ollama server up, and is the configured model pulled? */
 async function checkOllama(settings) {
   const url = (settings.ollamaUrl || "http://localhost:11434").replace(/\/+$/, "");
-  const want = settings.ollamaModel || "gemma2:2b";
+  const want = settings.ollamaModel || "gemma3:1b";
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 3000);
   try {
