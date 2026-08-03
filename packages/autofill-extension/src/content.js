@@ -548,6 +548,148 @@
     return false;
   };
 
+  // ===========================================================================
+  // Repeatable sections — "Add experience" / "Add education" that spawn rows.
+  // The agent asks how many rows exist, clicks Add until they match the résumé,
+  // then fills each row scoped to its own container (so row 2's Company gets
+  // experience #2, not #1). Row fields are matched within-row, not globally.
+  // ===========================================================================
+
+  const ROW_MATCHERS = {
+    experience: {
+      company: ["company", "employer", "organization", "organisation"],
+      title: ["title", "position", "role", "job title"],
+      location: ["location", "city"],
+      start: ["start date", "date from", "from", "start", "began"],
+      end: ["end date", "date to", "to date", "until", "end", "present"],
+      description: ["description", "responsibilit", "duties", "achievement", "what you did", "summary"],
+    },
+    education: {
+      university: ["school", "university", "college", "institution"],
+      degree: ["degree", "qualification"],
+      field: ["field of study", "major", "discipline", "field"],
+      location: ["location", "city"],
+      start: ["start date", "date from", "from", "start"],
+      end: ["end date", "date to", "graduation", "until", "end", "to"],
+      description: ["description", "activities", "achievement"],
+    },
+  };
+
+  const ADD_RE = {
+    experience: /add\s+(another\s+|more\s+|an?\s+)?(work\s+|employment\s+|professional\s+)?(experience|employment|work history|position|role|job)/i,
+    education: /add\s+(another\s+|more\s+|an?\s+)?(education|school|degree|university|qualification)/i,
+  };
+
+  /** input/textarea/select within a node, including open shadow roots. */
+  function fieldsIn(node) {
+    const out = [];
+    const walk = (n) => {
+      if (!n.querySelectorAll) return;
+      out.push(...n.querySelectorAll("input, textarea, select"));
+      for (const el of n.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
+    };
+    walk(node);
+    return out;
+  }
+
+  const rowFieldKey = (el, matchers) => {
+    const sig = fieldSignals(el);
+    for (const [key, needles] of Object.entries(matchers)) {
+      if (needles.some((n) => sig.includes(n))) return key;
+    }
+    return null;
+  };
+
+  /** Walk up from an anchor field to the smallest container that also holds a sibling field. */
+  function rowContainerOf(el, siblingNeedles) {
+    let node = el.parentElement;
+    for (let depth = 0; node && node !== document.body && depth < 8; depth++) {
+      const has = fieldsIn(node).some((f) => f !== el && siblingNeedles.some((n) => fieldSignals(f).includes(n)));
+      if (has) return node;
+      node = node.parentElement;
+    }
+    return el.closest("fieldset, li, [class*='row'], [class*='entry'], [class*='item']") || el.parentElement;
+  }
+
+  /** Distinct row containers currently rendered for a repeatable section. */
+  function rowsFor(kind) {
+    const m = ROW_MATCHERS[kind];
+    const anchorNeedles = kind === "experience" ? m.company : m.university;
+    const siblingNeedles = kind === "experience" ? m.title : m.degree;
+    const anchors = deepFields().filter(
+      (el) => fillable(el) && !isChoice(el) && anchorNeedles.some((n) => fieldSignals(el).includes(n)),
+    );
+    const rows = [];
+    for (const a of anchors) {
+      const c = rowContainerOf(a, siblingNeedles);
+      if (c && !rows.includes(c)) rows.push(c);
+    }
+    return rows;
+  }
+
+  function findAddButton(kind) {
+    const re = ADD_RE[kind];
+    const nodes = [...document.querySelectorAll("button, a, [role=button], input[type=button]")];
+    return nodes.find((b) => !b.disabled && b.offsetParent !== null && re.test(btnText(b))) || null;
+  }
+
+  function rowValue(entry, key, kind) {
+    if (kind === "experience") {
+      if (key === "description") return (entry.bullets || []).join("\n");
+      return entry[key] || "";
+    }
+    if (key === "description") return (entry.description || []).join("\n");
+    return entry[key] || "";
+  }
+
+  function fillRow(container, entry, kind) {
+    const m = ROW_MATCHERS[kind];
+    let filled = 0;
+    for (const el of fieldsIn(container)) {
+      if (!fillable(el) || isChoice(el)) continue;
+      if (el.value && el.value.trim()) continue; // only empty
+      const key = rowFieldKey(el, m);
+      if (!key) continue;
+      const val = rowValue(entry, key, kind);
+      if (!val) continue;
+      if (el.tagName === "SELECT") { if (fillSelect(el, String(val))) filled++; }
+      else { setValue(el, String(val)); filled++; }
+    }
+    return filled;
+  }
+
+  /** How many rows exist + whether an Add button is present, per section kind. */
+  window.__smartApplyRepeatInfo = () => {
+    const info = {};
+    for (const kind of ["experience", "education"]) {
+      const btn = findAddButton(kind);
+      if (btn) btn.setAttribute("data-sa-add", kind);
+      info[kind] = { rows: rowsFor(kind).length, hasAdd: !!btn };
+    }
+    return info;
+  };
+
+  /** Click the "Add <kind>" button to spawn a new row. Returns whether it clicked. */
+  window.__smartApplyAddRow = (kind) => {
+    const btn =
+      [...document.querySelectorAll("[data-sa-add]")].find((b) => b.dataset.saAdd === kind) ||
+      findAddButton(kind);
+    if (btn) { btn.click(); return true; }
+    return false;
+  };
+
+  /** Fill each rendered row with the matching résumé entry (row i ← entries[i]). */
+  window.__smartApplyFillRows = (kind, entries) => {
+    const rows = rowsFor(kind);
+    let filled = 0, used = 0;
+    for (let i = 0; i < rows.length && i < (entries || []).length; i++) {
+      const n = fillRow(rows[i], entries[i], kind);
+      filled += n;
+      if (n) used++;
+    }
+    return { filled, rows: rows.length, used };
+  };
+
   // Keep cached state fresh.
   chrome.storage.local.get(["learned", "hubUrl"]).then(({ learned: l, hubUrl: h }) => {
     if (l) learned = l;

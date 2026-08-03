@@ -15,14 +15,33 @@ function applicantContext(): string {
   const p = db.select().from(s.profile).where(eq(s.profile.id, "me")).get()?.data;
   const summary = db.select().from(s.summarySnippets).orderBy(s.summarySnippets.ord).all().map((x) => x.text);
   const skills = db.select().from(s.skills).orderBy(s.skills.ord).all().map((x) => x.name);
-  const exps = db.select().from(s.experiences).orderBy(s.experiences.kind, s.experiences.ord).all()
-    .map((e) => `- ${e.title} @ ${e.company} (${e.start}–${e.end})`);
+
+  // Experiences with a few approved bullets each, so Claude can answer
+  // substance questions ("describe your experience with X"), not just headers.
+  const expRows = db.select().from(s.experiences).orderBy(s.experiences.kind, s.experiences.ord).all();
+  const exps = expRows.map((e) => {
+    const bulletRows = db.select().from(s.bullets)
+      .where(eq(s.bullets.experienceId, e.id)).orderBy(s.bullets.ord).all()
+      .filter((b) => b.approved).slice(0, 3);
+    const bullets = bulletRows.map((b) => {
+      const v = db.select().from(s.bulletVariants).where(eq(s.bulletVariants.bulletId, b.id))
+        .orderBy(s.bulletVariants.isPrimary).all();
+      return (v.find((x) => x.isPrimary)?.text ?? v[0]?.text ?? "").trim();
+    }).filter(Boolean);
+    const header = `- ${e.title} @ ${e.company} (${e.start}–${e.end})`;
+    return bullets.length ? `${header}\n${bullets.map((b) => `  • ${b}`).join("\n")}` : header;
+  });
+
+  const edu = db.select().from(s.education).orderBy(s.education.ord).all()
+    .map((e) => `- ${e.degree}, ${e.university} (${e.start}–${e.end})`);
+
   return [
     p ? `Name: ${p.name}` : "",
     p?.email ? `Email: ${p.email}` : "",
     summary.length ? `Summary:\n${summary.join("\n")}` : "",
     skills.length ? `Skills: ${skills.join(", ")}` : "",
     exps.length ? `Experience:\n${exps.join("\n")}` : "",
+    edu.length ? `Education:\n${edu.join("\n")}` : "",
   ].filter(Boolean).join("\n\n");
 }
 

@@ -31,10 +31,31 @@ export async function syncProfileFromHub() {
   const { fields = {}, learned = {} } = await res.json();
   await chrome.storage.sync.set({ profile: fields });
   await chrome.storage.local.set({ learned });
+
+  // Also pull the structured résumé body (best-effort) so the Auto-pilot can
+  // ground answers and fill repeatable experience/education sections.
+  const resume = await syncResumeContextFromHub().catch(() => null);
+
   return {
     fieldCount: Object.values(fields).filter(Boolean).length,
     learnedCount: Object.keys(learned).length,
+    experienceCount: resume?.experiences?.length ?? 0,
+    educationCount: resume?.education?.length ?? 0,
   };
+}
+
+/**
+ * Pull the applicant's structured résumé body (summary/skills/experiences/
+ * education) and cache it in storage.local for the Auto-pilot to use. Stored
+ * in `local` (not `sync`) because it can exceed sync's per-item size limit.
+ */
+export async function syncResumeContextFromHub() {
+  const base = await getHubUrl();
+  const res = await fetch(`${base}/api/resume-context`);
+  if (!res.ok) throw new Error(`Hub returned ${res.status}`);
+  const resume = await res.json();
+  await chrome.storage.local.set({ resumeContext: resume });
+  return resume;
 }
 
 /**

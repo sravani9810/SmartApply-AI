@@ -24,7 +24,7 @@ for the full behavior; this skill covers how to change it safely.
 | File | Role | Context |
 |------|------|---------|
 | [`profile.js`](../../../packages/autofill-extension/src/profile.js) | `PROFILE_FIELDS`, `DEFAULT_PROFILE`, settings, storage helpers | ES module, imported by the popup |
-| [`content.js`](../../../packages/autofill-extension/src/content.js) | the actual filler: matchers, form detection, set-value, choices, learning; plus Auto-pilot page primitives (`__smartApplyObserve`/`__smartApplyApply`/`__smartApplyNext`) | injected content script |
+| [`content.js`](../../../packages/autofill-extension/src/content.js) | the actual filler: matchers, form detection, set-value, choices, learning; plus Auto-pilot page primitives (`__smartApplyObserve`/`__smartApplyApply`/`__smartApplyNext`) and repeatable-section primitives (`__smartApplyRepeatInfo`/`__smartApplyAddRow`/`__smartApplyFillRows`) | injected content script |
 | [`agent.js`](../../../packages/autofill-extension/src/agent.js) | Auto-pilot loop: observe → fill → reason → navigate → **stop at submit** | ES module, imported by `background.js` |
 | [`reasoner.js`](../../../packages/autofill-extension/src/reasoner.js) | pluggable reasoning backends (Ollama/Gemma, Chrome built-in Gemini Nano, Claude-via-Hub) + local-first→Claude router | ES module, imported by `agent.js` |
 | [`popup.html`](../../../packages/autofill-extension/src/popup.html) / [`popup.js`](../../../packages/autofill-extension/src/popup.js) | profile editor, autofill toggle, Fill / Fill & Submit, **Auto-pilot** controls + engine settings, job panel | popup page |
@@ -83,6 +83,28 @@ other sites are unaffected. Common culprits: options rendered as `div`s instead
 of `<select>`/`<option>` (extend `fillSelect`/choice handling), inputs inside
 shadow roots (already handled by `deepFields`), and forms that mount seconds
 after load (the open-time watcher covers a few seconds — lengthen only if needed).
+
+## Auto-pilot grounding & repeatable sections
+
+The Auto-pilot answers unknown fields with a model ([`reasoner.js`](../../../packages/autofill-extension/src/reasoner.js))
+and fills multi-entry sections from your résumé. Both need the **résumé body**,
+which is a cross-package data flow:
+
+- Hub `GET /api/resume-context` ([`queries.ts`](../../../packages/hub/src/db/queries.ts) `getResumeContext`)
+  returns `{ summary, skills, experiences[{…, bullets}], education }`.
+- The extension pulls it inside **Sync personal info from Hub**
+  ([`jobs.js`](../../../packages/autofill-extension/src/jobs.js) `syncResumeContextFromHub`)
+  and caches it in `chrome.storage.local.resumeContext`.
+- `background.js` loads it into `base.resume`; `agent.js` passes it to the
+  reasoner (grounding) and to `expandAndFillRepeaters` (row filling).
+- Claude's server-side grounding lives separately in
+  [`answer.ts`](../../../packages/hub/src/lib/answer.ts) `applicantContext` — if
+  you add a résumé field the models should know, update **both** that function
+  and `getResumeContext`.
+
+Repeatable-section support is heuristic: `ROW_MATCHERS` + `ADD_RE` in
+`content.js` detect "Add experience/education" buttons and scope each row to its
+nearest container. New ATS markup usually means extending those, not the loop.
 
 ## Two hard limits — don't try to "fix" these
 

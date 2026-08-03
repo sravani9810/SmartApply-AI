@@ -108,6 +108,38 @@ export function getSkills() {
 export function getSummarySnippets() {
   return db.select().from(s.summarySnippets).orderBy(s.summarySnippets.ord).all();
 }
+export function getEducation() {
+  return db.select().from(s.education).orderBy(s.education.ord).all();
+}
+
+/**
+ * Structured résumé body for the extension's Auto-pilot to ground answers and
+ * fill repeatable experience/education sections. Bullets are the approved,
+ * primary phrasing per experience.
+ */
+export function getResumeContext() {
+  return {
+    summary: getSummarySnippets().map((x) => x.text),
+    skills: getSkills().map((x) => x.name),
+    experiences: getLibrary().map((e) => ({
+      company: e.company,
+      title: e.title,
+      location: e.location,
+      start: e.start,
+      end: e.end,
+      kind: e.kind,
+      bullets: e.bullets.filter((b) => b.approved).map((b) => b.text).filter(Boolean),
+    })),
+    education: getEducation().map((e) => ({
+      degree: e.degree,
+      university: e.university,
+      location: e.location,
+      start: e.start,
+      end: e.end,
+      description: e.description ?? [],
+    })),
+  };
+}
 
 // ── Jobs ────────────────────────────────────────────────────────────────────
 

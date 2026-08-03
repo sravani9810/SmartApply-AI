@@ -8,24 +8,42 @@
 // Imported by the background service worker (an ES-module worker), so `import`
 // is allowed here — unlike content.js.
 
+import { alog } from "./log.js";
+
 const SYSTEM =
   "You help an applicant answer job-application form questions using ONLY the " +
   "factual context provided about them. Never invent employers, dates, degrees, " +
   "work-authorization/visa status, salary, or identifiers. If a field can't be " +
   "answered from the context, return an empty string for it. Reply with JSON only.";
 
-/** Compact grounding context from the synced profile + learned answers. */
+/** Compact grounding context from profile + résumé body + learned answers. */
 function contextBlock(ctx) {
   const profile = Object.entries(ctx.profile || {})
     .filter(([, v]) => v)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
+
+  const r = ctx.resume || {};
+  const experience = (r.experiences || []).map((e) => {
+    const header = `- ${e.title} @ ${e.company} (${e.start}–${e.end})`;
+    const bullets = (e.bullets || []).slice(0, 3).map((b) => `  • ${b}`).join("\n");
+    return bullets ? `${header}\n${bullets}` : header;
+  }).join("\n");
+  const education = (r.education || [])
+    .map((e) => `- ${e.degree}, ${e.university} (${e.start}–${e.end})`)
+    .join("\n");
+
   const learned = Object.entries(ctx.learned || {})
     .slice(0, 60)
     .map(([k, v]) => `- "${k}": ${v}`)
     .join("\n");
+
   return [
     profile && `APPLICANT PROFILE:\n${profile}`,
+    r.summary?.length && `SUMMARY:\n${r.summary.join("\n")}`,
+    r.skills?.length && `SKILLS: ${r.skills.join(", ")}`,
+    experience && `EXPERIENCE:\n${experience}`,
+    education && `EDUCATION:\n${education}`,
     learned && `PREVIOUSLY ANSWERED (reuse when a question is the same or a paraphrase):\n${learned}`,
   ].filter(Boolean).join("\n\n");
 }
@@ -177,6 +195,7 @@ export async function reason(fields, ctx, settings = {}) {
 
   for (const name of order) {
     if (remaining.length === 0) break;
+    const t0 = Date.now();
     try {
       const got = await BACKENDS[name](remaining, ctx, settings);
       let n = 0;
@@ -184,11 +203,18 @@ export async function reason(fields, ctx, settings = {}) {
         if (!(k in answersByKey)) { answersByKey[k] = v; n++; }
       }
       if (n) used.push(`${name}:${n}`);
+      alog("info", "reasoner", `${name} answered ${n}/${remaining.length} in ${Date.now() - t0}ms`);
       remaining = remaining.filter((f) => !(f.key in answersByKey));
     } catch (err) {
       used.push(`${name}:skip`); // backend unavailable — fall through to the next
+      alog("warn", "reasoner", `${name} unavailable, falling through`, { error: err.message });
     }
   }
 
+  if (remaining.length) {
+    alog("warn", "reasoner", `${remaining.length} field(s) unanswered`, {
+      labels: remaining.map((f) => f.label).slice(0, 12),
+    });
+  }
   return { answersByKey, meta: { used, unresolved: remaining.map((f) => f.key) } };
 }

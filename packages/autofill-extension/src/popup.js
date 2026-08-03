@@ -74,10 +74,14 @@ async function showProfileInfo() {
 $("syncProfile").addEventListener("click", async () => {
   statusEl.textContent = "Syncing personal info…";
   try {
-    const { fieldCount, learnedCount } = await syncProfileFromHub();
+    const { fieldCount, learnedCount, experienceCount, educationCount } = await syncProfileFromHub();
     await showProfileInfo();
     await showLearnedCount();
-    statusEl.textContent = `Synced ${fieldCount} field(s) and ${learnedCount} learned answer(s) from Hub.`;
+    const resumeBit = experienceCount || educationCount
+      ? `, ${experienceCount} experience(s) + ${educationCount} education entr(ies)`
+      : "";
+    statusEl.textContent =
+      `Synced ${fieldCount} field(s), ${learnedCount} learned answer(s)${resumeBit} from Hub.`;
   } catch (err) {
     statusEl.textContent = `Sync failed: ${err.message}`;
   }
@@ -172,22 +176,39 @@ $("ollamaModel").addEventListener("change", (e) => updateSetting({ ollamaModel: 
 
 /* ---------- connectivity status ---------- */
 
-function setDot(dotId, labelId, online, name, reason) {
-  const dot = $(dotId);
-  const label = $(labelId);
-  dot.className = `cdot ${online ? "on" : "off"}`;
-  label.textContent = `${name} ${online ? "online" : "offline"}`;
-  label.title = reason || "";
+// state: boolean (true=on/false=off) or "on" | "warn" | "off".
+function setDot(dotId, labelId, state, name, reason) {
+  const s = typeof state === "boolean" ? (state ? "on" : "off") : state;
+  const word = { on: "online", warn: "partial", off: "offline" }[s] || "offline";
+  $(dotId).className = `cdot ${s}`;
+  $(labelId).textContent = `${name} ${word}`;
+  $(labelId).title = reason || "";
 }
 
+const HEALTH_DOTS = [
+  ["hubDot", "hubLabel", "Hub"],
+  ["claudeDot", "claudeLabel", "Claude"],
+  ["ollamaDot", "ollamaLabel", "Ollama"],
+  ["chromeDot", "chromeLabel", "Nano"],
+];
+
 async function refreshHealth() {
-  $("hubLabel").textContent = "Hub…";
-  $("claudeLabel").textContent = "Claude…";
-  $("hubDot").className = "cdot";
-  $("claudeDot").className = "cdot";
-  const { hubOnline, claude } = await checkHealth();
+  for (const [dotId, labelId, name] of HEALTH_DOTS) {
+    $(labelId).textContent = `${name}…`;
+    $(dotId).className = "cdot";
+  }
+  // Hub + Claude come from the hub's health probe; the local models are probed
+  // in the background worker (where the reasoner actually runs).
+  const [{ hubOnline, claude }, models] = await Promise.all([
+    checkHealth(),
+    chrome.runtime.sendMessage({ type: "models:status" }).catch(() => null),
+  ]);
   setDot("hubDot", "hubLabel", hubOnline, "Hub", hubOnline ? "" : "hub unreachable");
   setDot("claudeDot", "claudeLabel", hubOnline && claude.online, "Claude", claude.reason);
+  const ollama = models?.ollama ?? { state: "off", reason: "status unavailable" };
+  const nano = models?.chrome ?? { state: "off", reason: "status unavailable" };
+  setDot("ollamaDot", "ollamaLabel", ollama.state, "Ollama", ollama.reason);
+  setDot("chromeDot", "chromeLabel", nano.state, "Nano", nano.reason);
 }
 
 $("conn").addEventListener("click", refreshHealth); // click to re-check

@@ -30,7 +30,7 @@
       .hdr-top img { border-radius: 7px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
       .hdr-top .name { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
       .hdr-top .name small { display: block; font-weight: 500; font-size: 10.5px; opacity: .85; letter-spacing: .3px; }
-      .conn { display: flex; align-items: center; gap: 7px; margin-top: 10px; }
+      .conn { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
       .chip {
         display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
         background: rgba(255,255,255,.16); color: #fff; padding: 3px 9px; border-radius: 999px;
@@ -39,6 +39,7 @@
       .chip:hover { background: rgba(255,255,255,.28); }
       .cdot { width: 7px; height: 7px; border-radius: 50%; background: #d8dee9; display: inline-block; flex: none; }
       .cdot.on { background: #b8ffdd; box-shadow: 0 0 5px #b8ffdd; }
+      .cdot.warn { background: #ffd66b; box-shadow: 0 0 5px #ffd66b; }
       .cdot.off { background: #ffb4a8; }
 
       .body { padding: 12px 14px 14px; }
@@ -140,6 +141,8 @@
       <div class="conn" id="conn" title="Click to re-check connectivity">
         <span class="chip"><span class="cdot" id="hubDot"></span><span id="hubLabel">Hub…</span></span>
         <span class="chip"><span class="cdot" id="claudeDot"></span><span id="claudeLabel">Claude…</span></span>
+        <span class="chip"><span class="cdot" id="ollamaDot"></span><span id="ollamaLabel">Ollama…</span></span>
+        <span class="chip"><span class="cdot" id="chromeDot"></span><span id="chromeLabel">Nano…</span></span>
       </div>
     </div>
 

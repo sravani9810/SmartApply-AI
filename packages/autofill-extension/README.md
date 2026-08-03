@@ -93,15 +93,42 @@ navigations) and loops over the whole application:
     (`ollama run gemma2:2b`), at the URL/model you set
   - `chrome` — Chrome's built-in `LanguageModel` (Gemini Nano) only
   - `claude` — Claude via the Hub only
+
+  The popup header shows a **live status dot for each model** — **Hub, Claude,
+  Ollama, Nano** — 🟢 online / 🟡 partial (e.g. Ollama up but the model isn't
+  pulled, or Nano still downloading) / 🔴 offline. Hover a dot for the reason;
+  click the row to re-check. The two local models are probed in the background
+  worker, the same place the reasoner runs, so the dots reflect what the agent
+  can actually use.
 - **It navigates pages by itself.** When a page is done it clicks
   **Next / Continue** and waits for the next page (SPA step *or* full reload) to
   settle, then repeats — across embedded ATS iframes too.
+- **It expands repeatable sections.** On forms with **Add experience / Add
+  education** buttons, it clicks Add until the number of rows matches your résumé,
+  then fills each row from the matching entry (row 2 ← job #2, not job #1) — scoped
+  per row so values don't bleed across rows. Capped at 8 rows per section.
 - **It always stops at Submit.** When it reaches a final **Submit** with no Next,
   or hits a required field it can't answer, it stops and tells you why. It
   **never clicks Submit** — you review and submit yourself (or use **Fill &
   Submit**). Submitting an application is irreversible.
 - **Guards:** step limit, loop/no-progress detection, and consent/terms
   checkboxes are never auto-answered.
+
+### What the models know about you
+
+Answers are grounded in your data, synced from the Hub by **↻ Sync personal info
+from Hub** (which now also pulls your résumé body):
+
+| Data | Deterministic | Local model | Claude |
+|------|:---:|:---:|:---:|
+| Personal fields (name, contact, work-auth, EEO…) | ✅ | ✅ | ✅ |
+| Learned answers (past Q&A) | ✅ | ✅ | ✅ |
+| Résumé body — summary, skills, experience bullets, education | — | ✅ | ✅ |
+| Job description | — | — | ✅ |
+
+The résumé body comes from `GET /api/resume-context` on the Hub and is cached in
+`chrome.storage.local.resumeContext`. Nothing invented: models are instructed to
+return an empty answer when a field isn't supported by this context.
 
 ### Two hard limits (browser rules, not bugs)
 

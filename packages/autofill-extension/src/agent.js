@@ -11,6 +11,7 @@
 // called per-frame via chrome.scripting so embedded ATS iframes work too.
 
 import { reason } from "./reasoner.js";
+import { alog } from "./log.js";
 
 const MAX_STEPS = 15;
 const SETTLE_TIMEOUT = 12000;
@@ -92,6 +93,57 @@ async function waitForSettle(tabId, prevSig) {
   }
 }
 
+const REPEAT_CAP = 8; // never spawn more than this many rows per section
+
+/**
+ * For each repeatable section (experience, education): click "Add" until the
+ * rendered row count matches how many résumé entries we have (capped), then
+ * fill each row from the matching entry. Returns fields filled.
+ */
+async function expandAndFillRepeaters(tabId, frameId, resume, note) {
+  const sections = [
+    ["experience", (resume.experiences || []).filter((e) => (e.kind || "work") === "work")],
+    ["education", resume.education || []],
+  ];
+  let filled = 0;
+
+  for (const [kind, entries] of sections) {
+    if (entries.length === 0) continue;
+    let info = await inFrame(tabId, frameId, "__smartApplyRepeatInfo", null);
+    let rows = info?.[kind]?.rows || 0;
+    let hasAdd = info?.[kind]?.hasAdd;
+    if (rows === 0 && !hasAdd) continue; // this form has no such section
+
+    const want = Math.min(entries.length, REPEAT_CAP);
+    alog("info", "repeater", `${kind}: ${rows} row(s) present, ${entries.length} to fill, addButton=${!!hasAdd}`);
+    let guard = 0;
+    while (rows < want && hasAdd && guard < want + 2) {
+      const clicked = await inFrame(tabId, frameId, "__smartApplyAddRow", kind);
+      if (!clicked) break;
+      await sleep(500); // let the new row render
+      info = await inFrame(tabId, frameId, "__smartApplyRepeatInfo", null);
+      const newRows = info?.[kind]?.rows || 0;
+      hasAdd = info?.[kind]?.hasAdd;
+      if (newRows <= rows) break; // Add didn't produce a new row — stop
+      alog("info", "repeater", `${kind}: clicked Add → ${newRows} row(s)`);
+      rows = newRows;
+      guard++;
+    }
+
+    const res = await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [frameId] },
+      args: [kind, entries],
+      func: (k, e) => (window.__smartApplyFillRows ? window.__smartApplyFillRows(k, e) : { filled: 0 }),
+    }).then((r) => r?.[0]?.result).catch(() => null);
+
+    if (res?.filled) {
+      filled += res.filled;
+      note(`filled ${res.filled} field(s) across ${res.used}/${res.rows} ${kind} row(s)`);
+    }
+  }
+  return filled;
+}
+
 /**
  * Drive the tab. `hooks.onProgress(evt)` reports each phase; `hooks.shouldStop()`
  * lets the caller cancel between steps. Resolves with a terminal result object.
@@ -116,6 +168,14 @@ export async function runAutopilot(tabId, base, settings, hooks = {}) {
     const { frameId } = target;
     const url = target.snap.url;
     const ctx = { ...base, url };
+    alog("info", "autopilot", `· step ${step}: observed page`, {
+      url,
+      frame: frameId,
+      fields: target.snap.fields.length,
+      empty: target.snap.fields.filter((f) => !f.filled).length,
+      hasNext: target.snap.hasNext,
+      hasSubmit: target.snap.hasSubmit,
+    });
 
     // 1. Deterministic pass — instant, from the synced profile + learned answers.
     onProgress({ step, phase: "fill", message: `Step ${step}: filling known fields…` });
@@ -125,6 +185,14 @@ export async function runAutopilot(tabId, base, settings, hooks = {}) {
       func: (p, l, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, l, s) : { filled: 0 }),
     }).then((r) => r?.[0]?.result).catch(() => null);
     totalFilled += detResult?.filled || 0;
+
+    // 1.5 Expand & fill repeatable "Add experience / Add education" sections.
+    if (base.resume) {
+      const added = await expandAndFillRepeaters(tabId, frameId, base.resume, (m) =>
+        onProgress({ step, phase: "repeat", message: `Step ${step}: ${m}` }),
+      );
+      totalFilled += added;
+    }
 
     // 2. Re-observe, then reason about whatever is still empty.
     frames = await observeAll(tabId);
@@ -137,11 +205,17 @@ export async function runAutopilot(tabId, base, settings, hooks = {}) {
         step, phase: "reason",
         message: `Step ${step}: reasoning about ${empties.length} field(s)…`,
       });
+      alog("info", "reasoner", `step ${step}: asking about ${empties.length} field(s)`, {
+        labels: empties.map((f) => f.label).slice(0, 12),
+      });
       const { answersByKey, meta } = await reason(empties, ctx, settings);
       if (Object.keys(answersByKey).length) {
         reasoned = await inFrame(tabId, frameId, "__smartApplyApply", answersByKey) || 0;
         totalFilled += reasoned;
       }
+      alog("info", "reasoner", `step ${step}: applied ${reasoned} answer(s)`, {
+        via: meta.used, unresolved: meta.unresolved.length,
+      });
       onProgress({
         step, phase: "reason",
         message: `Step ${step}: filled ${reasoned} (via ${meta.used.join(", ") || "none"}).`,
@@ -183,6 +257,7 @@ export async function runAutopilot(tabId, base, settings, hooks = {}) {
       if (!clicked) {
         return { status: "stuck", message: "Couldn't find the Next button — please continue manually.", filled: totalFilled };
       }
+      alog("info", "autopilot", `→ step ${step}: clicked Next, waiting for the page to settle`);
       await waitForSettle(tabId, sig);
       continue;
     }
