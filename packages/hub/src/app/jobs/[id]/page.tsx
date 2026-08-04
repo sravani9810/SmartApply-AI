@@ -67,8 +67,13 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           </select>
           <button className="btn" type="submit">Tailor →</button>
         </form>
-        <Link className="btn on" href={`/build?jobId=${id}`}>✦ Compose &amp; edit for this job</Link>
+        <Link className="btn on" href={`/jobs/${id}/tailor`}>✎ Write résumé from master →</Link>
+        <Link className="btn" href={`/build?jobId=${id}`}>✦ Compose &amp; edit for this job</Link>
       </div>
+      <p className="sub" style={{ marginTop: 6, fontSize: 12 }}>
+        <b>Write résumé from master</b> edits your fixed base résumé for this job and shows a
+        side-by-side diff of every change, rather than composing a new one from the bullet library.
+      </p>
 
       {match ? (
         <div className="panel" style={{ marginTop: 14, padding: "14px 18px" }}>

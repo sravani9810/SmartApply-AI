@@ -152,6 +152,69 @@ export async function duplicateResume(id: string) {
 }
 
 /**
+ * Adapt the master résumé to one job and stash the result as a draft, so the
+ * page can render a diff without holding it in client state. Nothing is
+ * committed to the résumé library until you accept it.
+ */
+export async function adaptResumeForJob(jobId: string) {
+  const { tailorFromBase } = await import("../lib/tailorFromBase");
+  const { setSetting } = await import("./queries");
+  const job = db.select().from(s.jobs).where(eq(s.jobs.id, jobId)).get();
+  if (!job) return;
+
+  const result = await tailorFromBase({
+    title: job.title, company: job.company, description: job.description,
+  });
+  setSetting(`tailorDraft:${jobId}`, { ...result, at: new Date().toISOString() });
+  revalidatePath(`/jobs/${jobId}/tailor`);
+}
+
+/** Accept the draft: store it as a résumé and link it to the job. */
+export async function acceptTailoredResume(jobId: string) {
+  const { getSetting } = await import("./queries");
+  const draft = getSetting<{ after?: import("@smartapply/shared").ResumeData }>(`tailorDraft:${jobId}`);
+  if (!draft?.after) return;
+
+  const job = db.select().from(s.jobs).where(eq(s.jobs.id, jobId)).get();
+  const id = crypto.randomUUID();
+  db.insert(s.resumes).values({
+    id,
+    flavorId: null,
+    resumeData: draft.after as never,
+    createdAt: new Date().toISOString(),
+    label: `${job?.company ?? "job"} — ${job?.title ?? ""}`.slice(0, 120),
+    jd: job?.description ?? null,
+    company: job?.company ?? null,
+    targetRole: job?.title ?? null,
+    usedClaude: true,
+  }).run();
+
+  const app = db.select().from(s.applications).where(eq(s.applications.jobId, jobId)).get();
+  if (app) db.update(s.applications).set({ resumeId: id }).where(eq(s.applications.id, app.id)).run();
+  else {
+    db.insert(s.applications).values({
+      id: crypto.randomUUID(), jobId, resumeId: id, status: job?.status ?? "new",
+    }).run();
+  }
+
+  revalidatePath(`/jobs/${jobId}/tailor`);
+  revalidatePath(`/jobs/${jobId}`);
+  redirect(`/resumes/${id}`);
+}
+
+export async function savePromptTemplateAction(formData: FormData) {
+  const { setPromptTemplate } = await import("../lib/promptTemplate");
+  setPromptTemplate(String(formData.get("template") ?? ""));
+  revalidatePath(String(formData.get("back") ?? "/"));
+}
+
+export async function resetPromptTemplateAction(formData: FormData) {
+  const { setPromptTemplate, DEFAULT_PROMPT_TEMPLATE } = await import("../lib/promptTemplate");
+  setPromptTemplate(DEFAULT_PROMPT_TEMPLATE);
+  revalidatePath(String(formData.get("back") ?? "/"));
+}
+
+/**
  * Learned answers are what the extension fills unmatched fields with, so a bad
  * one silently repeats itself on every future application. These let you fix or
  * forget an answer instead of clearing all of them.
