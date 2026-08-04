@@ -151,7 +151,6 @@ export async function duplicateResume(id: string) {
   redirect(`/resumes/${newId}`);
 }
 
-/** Save the applicant's application-form fields (the hub profile page). */
 /**
  * Learned answers are what the extension fills unmatched fields with, so a bad
  * one silently repeats itself on every future application. These let you fix or
@@ -191,6 +190,24 @@ export async function addLearnedAnswer(formData: FormData) {
   revalidatePath("/profile");
 }
 
+/**
+ * Delete a résumé from the library.
+ *
+ * PDFs are rendered on demand rather than stored, so there is no file to clean
+ * up, and applications.resumeId is ON DELETE SET NULL — an application keeps
+ * its history and simply loses the link. `redirectTo` lets the detail page send
+ * you back to the library while the library page deletes in place.
+ */
+export async function deleteResume(id: string, redirectTo?: string) {
+  const row = db.select().from(s.resumes).where(eq(s.resumes.id, id)).get();
+  if (!row) return;
+  db.delete(s.resumes).where(eq(s.resumes.id, id)).run();
+  revalidatePath("/resumes");
+  revalidatePath("/applications");
+  if (redirectTo) redirect(redirectTo);
+}
+
+/** Save the applicant's application-form fields (the hub profile page). */
 export async function saveApplicantFields(formData: FormData) {
   const { APPLICANT_FIELD_KEYS } = await import("../lib/applicantFields");
   const fields: Record<string, string> = {};

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getResumes, getResumeDomains } from "../../db/queries";
+import { DeleteResumeButton } from "../../components/DeleteResumeButton";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ export default async function ResumeLibrary({ searchParams }: { searchParams: Pr
               <div className="rowacts" style={{ marginTop: 10 }}>
                 <a className="btn" href={`/api/resume/${r.id}/pdf`} target="_blank" rel="noreferrer">PDF</a>
                 <Link className="btn" href={`/resumes/${r.id}`}>Open →</Link>
+                <DeleteResumeButton id={r.id} label={r.label} />
               </div>
             </div>
           ))}

@@ -4,6 +4,7 @@ import { getResume } from "../../../db/queries";
 import { deriveState } from "../../../lib/compose";
 import { duplicateResume } from "../../../db/actions";
 import { ResumeRefiner } from "../../../components/ResumeRefiner";
+import { DeleteResumeButton } from "../../../components/DeleteResumeButton";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export default async function ResumePage({ params }: { params: Promise<{ id: str
             <button className="btn" type="submit">＋ Create another from this</button>
           </form>
           <a className="btn" href={`/api/resume/${id}/pdf`} target="_blank" rel="noreferrer">Download PDF</a>
+          <DeleteResumeButton id={id} label={resume.label} redirectTo="/resumes" />
         </div>
       </div>
       <p className="sub">
