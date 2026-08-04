@@ -16,32 +16,132 @@ const SYSTEM =
   "work-authorization/visa status, salary, or identifiers. If a field can't be " +
   "answered from the context, return an empty string for it. Reply with JSON only.";
 
-/** Compact grounding context from profile + résumé body + learned answers. */
-function contextBlock(ctx) {
+// --- Context selection -------------------------------------------------------
+//
+// Everything below exists to send only what the questions actually need. The
+// previous version sent the whole profile, the whole résumé and an arbitrary
+// first-60 slice of learned answers on every call: ~17k characters to ask two
+// questions. That is both a privacy problem (home address and EEO answers went
+// out to answer "middle name") and an accuracy one — a 4096-token local model
+// spent most of its window on preamble before reaching the field list.
+
+const STOP = new Set([
+  "the", "a", "an", "of", "to", "your", "you", "is", "are", "in", "for", "and", "or",
+  "please", "select", "enter", "what", "which", "do", "does", "did", "this", "that",
+  "with", "on", "at", "by", "have", "has", "be", "if", "any", "all", "we", "us", "our",
+  "from", "about", "will", "would", "can", "may", "there", "their", "it", "as",
+]);
+
+function tokens(text) {
+  return (text || "")
+    .toLowerCase()
+    .split(/[^a-z0-9+#]+/)
+    .filter((w) => w.length > 2 && !STOP.has(w));
+}
+
+/** How many distinct tokens an item shares with what's being asked. */
+function overlap(text, asked) {
+  let n = 0;
+  for (const w of new Set(tokens(text))) if (asked.has(w)) n++;
+  return n;
+}
+
+/** True when any of `words` appears in the asked-about text. */
+const wants = (asked, words) => words.some((w) => asked.has(w));
+
+// Profile keys carry meaning the key name alone doesn't always spell out.
+const PROFILE_HINTS = {
+  firstName: "first name given legal",
+  lastName: "last name surname family legal",
+  email: "email mail contact",
+  phone: "phone mobile telephone cell contact number",
+  address: "address street residential mailing location",
+  city: "city town address location",
+  state: "state province region address",
+  zipcode: "zip postal postcode pin code address",
+  country: "country nation nationality citizen location",
+  linkedin: "linkedin profile url link social",
+  website: "website portfolio url link personal site",
+  currentCompany: "current company employer organisation organization work",
+  currentTitle: "current title role position designation job occupation work",
+  yearsExperience: "years experience total duration seniority",
+  workAuthorized: "authorized authorised eligible work authorization visa legally permit",
+  requiresSponsorship: "sponsorship visa require need immigration",
+  gender: "gender sex identity",
+  veteranStatus: "veteran military service armed",
+  disabilityStatus: "disability disabled impairment accommodation",
+};
+
+const LONG_FORM = ["describe", "why", "tell", "explain", "cover", "letter", "summary",
+  "introduce", "yourself", "motivation", "interest", "additional", "comments", "note"];
+// Deliberately no bare "work": it appears in "authorized to work" and "willing
+// to relocate for work", which are not questions about your job history.
+const EXPERIENCE_WORDS = ["experience", "employer", "employment", "company", "role", "position",
+  "job", "history", "project", "achievement", "responsibility", "title", "years", "worked"];
+const EDUCATION_WORDS = ["education", "degree", "school", "university", "college", "graduate",
+  "graduation", "major", "study", "qualification", "institution", "gpa"];
+const SKILL_WORDS = ["skill", "skills", "technology", "technologies", "tool", "tools", "stack",
+  "framework", "language", "languages", "proficiency", "expertise", "competency"];
+
+const MAX_LEARNED = 12;
+
+/**
+ * Grounding context scoped to `fields`. Sections are included only when the
+ * questions point at them; learned answers are ranked by token overlap instead
+ * of taken in insertion order, so the ones that survive are the ones that might
+ * actually answer something.
+ */
+function contextBlock(ctx, fields = []) {
+  const asked = new Set(
+    fields.flatMap((f) => [...tokens(f.label), ...tokens((f.options || []).join(" "))]),
+  );
+  const longForm = fields.some(
+    (f) => f.type === "textarea" || wants(new Set(tokens(f.label)), LONG_FORM),
+  );
+
+  // Name is near-free and underpins many composed answers ("full name",
+  // "signature"); everything else has to earn its place.
   const profile = Object.entries(ctx.profile || {})
-    .filter(([, v]) => v)
+    .filter(([k, v]) => {
+      if (!v) return false;
+      if (k === "firstName" || k === "lastName") return true;
+      return overlap(`${k} ${PROFILE_HINTS[k] || ""}`, asked) > 0;
+    })
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
 
   const r = ctx.resume || {};
-  const experience = (r.experiences || []).map((e) => {
-    const header = `- ${e.title} @ ${e.company} (${e.start}–${e.end})`;
-    const bullets = (e.bullets || []).slice(0, 3).map((b) => `  • ${b}`).join("\n");
-    return bullets ? `${header}\n${bullets}` : header;
-  }).join("\n");
-  const education = (r.education || [])
-    .map((e) => `- ${e.degree}, ${e.university} (${e.start}–${e.end})`)
-    .join("\n");
+  const wantExp = longForm || wants(asked, EXPERIENCE_WORDS);
+  const wantEdu = wants(asked, EDUCATION_WORDS);
+  const wantSkills = longForm || wants(asked, SKILL_WORDS);
+
+  // Bullets are the bulk of the résumé — only worth their size when the answer
+  // has to be prose. A "years of experience" field just needs the headers.
+  const experience = wantExp
+    ? (r.experiences || []).map((e) => {
+        const header = `- ${e.title} @ ${e.company} (${e.start}–${e.end})`;
+        if (!longForm) return header;
+        const bullets = (e.bullets || []).slice(0, 3).map((b) => `  • ${b}`).join("\n");
+        return bullets ? `${header}\n${bullets}` : header;
+      }).join("\n")
+    : "";
+
+  const education = wantEdu
+    ? (r.education || []).map((e) => `- ${e.degree}, ${e.university} (${e.start}–${e.end})`).join("\n")
+    : "";
 
   const learned = Object.entries(ctx.learned || {})
-    .slice(0, 60)
-    .map(([k, v]) => `- "${k}": ${v}`)
+    .map(([k, v]) => ({ k, v, score: overlap(k, asked) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_LEARNED)
+    .map((x) => `- "${x.k}": ${x.v}`)
     .join("\n");
 
   return [
     profile && `APPLICANT PROFILE:\n${profile}`,
-    r.summary?.length && `SUMMARY:\n${r.summary.join("\n")}`,
-    r.skills?.length && `SKILLS: ${r.skills.join(", ")}`,
+    longForm && r.summary?.length && `SUMMARY:\n${r.summary.join("\n")}`,
+    wantSkills && r.skills?.length && `SKILLS: ${r.skills.join(", ")}`,
     experience && `EXPERIENCE:\n${experience}`,
     education && `EDUCATION:\n${education}`,
     learned && `PREVIOUSLY ANSWERED (reuse when a question is the same or a paraphrase):\n${learned}`,
@@ -57,7 +157,7 @@ function fieldList(fields) {
 }
 
 function buildUserPrompt(fields, ctx) {
-  return `${contextBlock(ctx)}
+  return `${contextBlock(ctx, fields)}
 
 FORM FIELDS (key [type] label):
 ${fieldList(fields)}
