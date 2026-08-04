@@ -196,10 +196,28 @@ export async function runAutopilot(tabId, base, settings, hooks = {}) {
       totalFilled += added;
     }
 
+    // 1.6 Custom dropdowns. Their options only exist once opened, so this is a
+    // separate async pass: it fills what the profile already covers and hands
+    // back the rest, options included, to be reasoned about with everything else.
+    const combo = await chrome.scripting.executeScript({
+      target: { tabId, frameIds: [frameId] },
+      args: [base.profile, base.learned],
+      func: (p, l) => (window.__smartApplyScanCombos ? window.__smartApplyScanCombos(p, l) : { filled: 0, fields: [] }),
+    }).then((r) => r?.[0]?.result).catch(() => null);
+    totalFilled += combo?.filled || 0;
+    if (combo?.filled || combo?.fields?.length) {
+      alog("info", "combobox", `${combo.filled} filled, ${combo.fields.length} need an answer`, {
+        labels: combo.fields.map((f) => f.label).slice(0, 8),
+      });
+    }
+
     // 2. Re-observe, then reason about whatever is still empty.
     frames = await observeAll(tabId);
     target = frames.find((f) => f.frameId === frameId) || pickTarget(frames);
-    const empties = (target?.snap.fields || []).filter((f) => !f.filled && !f.consent);
+    const empties = [
+      ...(target?.snap.fields || []).filter((f) => !f.filled && !f.consent),
+      ...(combo?.fields || []),
+    ];
 
     let reasoned = 0;
     if (empties.length) {
@@ -213,6 +231,14 @@ export async function runAutopilot(tabId, base, settings, hooks = {}) {
       const { answersByKey, meta } = await reason(empties, ctx, settings);
       if (Object.keys(answersByKey).length) {
         reasoned = await inFrame(tabId, frameId, "__smartApplyApply", answersByKey) || 0;
+        // Combo answers can't be assigned — each needs opening and clicking.
+        if (Object.keys(answersByKey).some((k) => k.startsWith("sac"))) {
+          reasoned += await chrome.scripting.executeScript({
+            target: { tabId, frameIds: [frameId] },
+            args: [answersByKey],
+            func: (a) => (window.__smartApplyFillCombos ? window.__smartApplyFillCombos(a) : 0),
+          }).then((r) => r?.[0]?.result || 0).catch(() => 0);
+        }
         totalFilled += reasoned;
       }
       alog("info", "reasoner", `step ${step}: applied ${reasoned} answer(s)`, {

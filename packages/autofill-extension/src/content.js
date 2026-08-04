@@ -144,13 +144,17 @@
     return norm(label);
   }
 
-  function fieldFor(el) {
-    const signals = fieldSignals(el);
+  /** Match already-collected signal text to a known profile field. */
+  function fieldForText(signals) {
     if (!signals) return null;
     for (const [field, needles] of Object.entries(FIELD_MATCHERS)) {
       if (needles.some((n) => signals.includes(n))) return field;
     }
     return null;
+  }
+
+  function fieldFor(el) {
+    return fieldForText(fieldSignals(el));
   }
 
   function setValue(el, value) {
@@ -754,6 +758,207 @@
       if (n) used++;
     }
     return { filled, rows: rows.length, used };
+  };
+
+  // ===========================================================================
+  // Custom dropdowns (comboboxes).
+  //
+  // Modern ATS platforms rarely ship a native <select> — Workday, Lever,
+  // react-select and friends render a div/button that opens a list on click.
+  // None of the code above sees them: deepFields only collects input/textarea/
+  // select. These are exactly the fields you cannot leave blank (work
+  // authorisation, visa status, country, notice period).
+  //
+  // Unlike every other primitive here these are async: the options do not exist
+  // in the DOM until the control is opened, and the menu often renders into a
+  // portal at the end of <body> rather than inside the field. executeScript
+  // awaits a returned promise, so the agent calls these like any other.
+  // ===========================================================================
+
+  const COMBO_SEL = [
+    '[role="combobox"]',
+    '[aria-haspopup="listbox"]',
+    '[class*="select__control"]',
+    '[class*="Select-control"]',
+  ].join(",");
+
+  const PLACEHOLDER_RE = /^\s*(--|select|choose|please|none|search|type)/i;
+  const napMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  const comboVisible = (el) =>
+    el.offsetParent !== null || getComputedStyle(el).position === "fixed";
+
+  /** The clickable host for a combo — react-select nests an input inside it. */
+  const comboHost = (el) =>
+    el.closest('[class*="select__control"], [class*="Select-control"]') || el;
+
+  function comboCandidates() {
+    const found = [];
+    const walk = (node) => {
+      if (!node.querySelectorAll) return;
+      found.push(...node.querySelectorAll(COMBO_SEL));
+      for (const el of node.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
+    };
+    walk(document);
+
+    const out = [];
+    const seen = new Set();
+    for (const el of found) {
+      if (el.tagName === "SELECT" || el.disabled) continue;
+      const host = comboHost(el);
+      if (!comboVisible(host) || seen.has(host)) continue;
+      seen.add(host);
+      out.push(host);
+    }
+    return out;
+  }
+
+  /** Text currently shown in the control, minus placeholder chrome. */
+  function comboValue(el) {
+    const t = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
+    if (!t || PLACEHOLDER_RE.test(t)) return "";
+    return t;
+  }
+
+  function comboLabel(el) {
+    const root = el.getRootNode();
+    const parts = [el.getAttribute("aria-label")];
+    const lb = el.getAttribute("aria-labelledby");
+    if (lb && root.getElementById) {
+      for (const id of lb.split(/\s+/)) parts.push(root.getElementById(id)?.textContent);
+    }
+    if (el.id && root.querySelector) {
+      parts.push(root.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent);
+    }
+    parts.push(el.closest("label")?.textContent);
+    // Otherwise the nearest label-ish node in the surrounding field wrapper.
+    let wrap = el.parentElement;
+    for (let i = 0; i < 4 && wrap && !parts.filter(Boolean).length; i++) {
+      const l = wrap.querySelector("label, legend, [class*='label']");
+      if (l && !l.contains(el)) parts.push(l.textContent);
+      wrap = wrap.parentElement;
+    }
+    return norm(parts.filter(Boolean).join(" ")).slice(0, 120);
+  }
+
+  /** react-select and friends open on mousedown, not click — send the lot. */
+  function press(el) {
+    const opts = { bubbles: true, cancelable: true, view: window };
+    el.dispatchEvent(new PointerEvent("pointerdown", opts));
+    el.dispatchEvent(new MouseEvent("mousedown", opts));
+    el.dispatchEvent(new PointerEvent("pointerup", opts));
+    el.dispatchEvent(new MouseEvent("mouseup", opts));
+    el.dispatchEvent(new MouseEvent("click", opts));
+  }
+
+  /** Options currently rendered for this control, wherever they were portalled. */
+  function comboOptions(el) {
+    const root = el.getRootNode();
+    const owns = el.getAttribute("aria-controls") || el.getAttribute("aria-owns");
+    let box = owns && root.getElementById ? root.getElementById(owns) : null;
+    if (!box) {
+      const boxes = [...document.querySelectorAll('[role="listbox"], [class*="select__menu"], [class*="Select-menu"]')]
+        .filter(comboVisible);
+      box = boxes[boxes.length - 1] || null; // portals append last
+    }
+    if (!box) return [];
+    let nodes = [...box.querySelectorAll('[role="option"], [class*="select__option"], li')];
+    if (!nodes.length) nodes = [...box.children];
+    return nodes
+      .filter((n) => comboVisible(n))
+      .map((n) => ({ node: n, text: (n.innerText || n.textContent || "").replace(/\s+/g, " ").trim() }))
+      .filter((o) => o.text && !PLACEHOLDER_RE.test(o.text));
+  }
+
+  async function openCombo(el) {
+    press(el);
+    for (let i = 0; i < 8; i++) {
+      await napMs(60);
+      const opts = comboOptions(el);
+      if (opts.length) return opts;
+    }
+    return [];
+  }
+
+  const closeCombo = (el) => {
+    el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    document.body.click();
+  };
+
+  function pickOption(opts, want) {
+    const w = String(want).trim().toLowerCase();
+    if (!w) return null;
+    return (
+      opts.find((o) => o.text.toLowerCase() === w) ||
+      opts.find((o) => o.text.toLowerCase().startsWith(w)) ||
+      opts.find((o) => o.text.toLowerCase().includes(w)) ||
+      opts.find((o) => w.includes(o.text.toLowerCase())) ||
+      null
+    );
+  }
+
+  /**
+   * Open every empty custom dropdown, fill the ones the profile or a learned
+   * answer already covers, and report the rest (with their real options) so the
+   * Auto-pilot can reason about them.
+   */
+  window.__smartApplyScanCombos = async (profile = {}, learnedMap = learned, answerList = answers) => {
+    const pending = [];
+    let filled = 0, k = 0;
+
+    for (const el of comboCandidates()) {
+      const key = `sac${k++}`;
+      el.setAttribute("data-sa-combo", key);
+      const label = comboLabel(el);
+      if (!label) continue;
+      if (comboValue(el)) continue; // already answered
+
+      const opts = await openCombo(el);
+      if (!opts.length) { closeCombo(el); continue; }
+
+      // Same precedence as the native path: profile, then saved answers, then
+      // whatever you typed into this question before.
+      const field = choiceFieldFor(label) || fieldForText(label);
+      let want = field ? String(valueFor(profile, field) ?? "") : "";
+      if (!want) {
+        const entry = matchAnswer(label, ["select", "radio"], answerList);
+        if (entry) want = entry.value;
+      }
+      if (!want && learnedMap && learnedMap[norm(label)]) want = String(learnedMap[norm(label)]);
+
+      const hit = want ? pickOption(opts, want) : null;
+      if (hit) {
+        press(hit.node);
+        await napMs(80);
+        filled++;
+        continue;
+      }
+
+      pending.push({
+        key, label, type: "select",
+        options: opts.map((o) => o.text).slice(0, 40),
+        required: el.getAttribute("aria-required") === "true" || !!el.closest("[aria-required='true']"),
+        filled: false,
+      });
+      closeCombo(el);
+      await napMs(40);
+    }
+    return { filled, fields: pending };
+  };
+
+  /** Apply reasoned answers to custom dropdowns, keyed by data-sa-combo. */
+  window.__smartApplyFillCombos = async (byKey) => {
+    let filled = 0;
+    for (const [key, value] of Object.entries(byKey || {})) {
+      if (!key.startsWith("sac") || !value) continue;
+      const el = document.querySelector(`[data-sa-combo="${key}"]`);
+      if (!el || comboValue(el)) continue;
+      const opts = await openCombo(el);
+      const hit = pickOption(opts, value);
+      if (hit) { press(hit.node); await napMs(80); filled++; }
+      else { closeCombo(el); }
+    }
+    return filled;
   };
 
   // Keep cached state fresh. Ignore rejections (an orphaned script post-reload).
