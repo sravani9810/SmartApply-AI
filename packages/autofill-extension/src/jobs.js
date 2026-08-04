@@ -160,44 +160,57 @@ export async function setStatus(id, status) {
   return statuses[id];
 }
 
-/** Pull the Indeed job key (jk) out of a URL, if present. */
-function jkOf(url) {
-  const m = /[?&]jk=([0-9a-z]+)/i.exec(url || "");
-  return m ? m[1] : null;
-}
+/**
+ * A board's own identifier for a posting, as a canonical string.
+ *
+ * Identity only — never a substring or prefix comparison. The old loose match
+ * compared origin+path, but boards keep the posting id in the QUERY string:
+ * every Indeed job normalizes to ".../viewjob", so any Indeed page matched
+ * whichever Indeed job happened to be first in the list. Silently linking to
+ * the wrong job is far worse than not linking at all, since the status
+ * write-back would then mark the wrong application.
+ *
+ * Returns null when a URL carries no reliable id — the caller treats that as
+ * "no match" rather than guessing.
+ */
+export function jobKey(url) {
+  let u;
+  try { u = new URL(url); } catch { return null; }
+  const host = u.hostname.replace(/^www\./, "");
+  const path = u.pathname.replace(/\/+$/, "");
 
-/** Normalize a URL to origin+path (drop query/hash) for loose comparison. */
-function basePath(url) {
-  try {
-    const u = new URL(url);
-    return (u.origin + u.pathname).replace(/\/+$/, "");
-  } catch {
-    return "";
-  }
+  const jk = u.searchParams.get("jk");
+  if (jk) return `indeed:${jk}`;
+
+  let m = /^\/jobs\/view\/(\d+)/.exec(path);
+  if (m && host.endsWith("linkedin.com")) return `linkedin:${m[1]}`;
+
+  m = /^\/([^/]+)\/jobs\/(\d+)/.exec(path);
+  if (m && host.includes("greenhouse.io")) return `greenhouse:${m[1]}/${m[2]}`;
+
+  m = /^\/([^/]+)\/([0-9a-f-]{16,})/.exec(path);
+  if (m && host.includes("lever.co")) return `lever:${m[1]}/${m[2]}`;
+
+  m = /_(R-?\d+)/.exec(path);
+  if (m && host.includes("myworkdayjobs.com")) return `workday:${host}:${m[1]}`;
+
+  // Anything else: the full path, but only when it is specific enough to
+  // identify one posting. A bare "/viewjob" or "/careers" is not.
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length >= 2 && path.length > 12) return `url:${host}${path}`;
+  return null;
 }
 
 /**
- * Find the job that best matches the current tab URL:
- *   1. same Indeed jk
- *   2. one URL's base path contains the other's (apply page vs posting)
- * Returns the matching job or null.
+ * Find the job this URL *is*. Exact key equality — see jobKey. Returns null
+ * when the page is an ATS form, an unknown posting, or anything else we can't
+ * identify with confidence; carrying the link across an apply-flow redirect is
+ * the background worker's job (tab lineage), not this function's.
  */
 export function matchJobForUrl(url, jobs) {
-  if (!url) return null;
-  const jk = jkOf(url);
-  if (jk) {
-    const byJk = jobs.find((j) => jkOf(j.url) === jk);
-    if (byJk) return byJk;
-  }
-  const base = basePath(url);
-  if (base) {
-    const byPath = jobs.find((j) => {
-      const jb = basePath(j.url);
-      return jb && (base.includes(jb) || jb.includes(base));
-    });
-    if (byPath) return byPath;
-  }
-  return null;
+  const key = jobKey(url);
+  if (!key) return null;
+  return jobs.find((j) => jobKey(j.url) === key) ?? null;
 }
 
 /** Build the status-updates.json payload ({ updates: [...] }). */

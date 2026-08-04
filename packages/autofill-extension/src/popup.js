@@ -161,6 +161,7 @@ $("autopilotStop").addEventListener("click", async () => {
 // Live progress pushed from the background loop.
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "autopilot:progress") renderAutopilot(msg.state, msg.state?.running);
+  if (msg?.type === "claude:progress") statusEl.textContent = msg.message;
 });
 
 /* ---------- reasoner engine settings ---------- */
@@ -218,7 +219,8 @@ $("conn").addEventListener("click", refreshHealth); // click to re-check
 
 let jobs = [];
 let statuses = {};
-let currentJob = null; // resolved from URL match or manual pick
+let currentJob = null; // resolved from the tab's binding, a URL match, or a pick
+let linkedVia = null;  // "tab" | "url" | "picked" | "created" — shown in the UI
 
 async function activeTabUrl() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -234,9 +236,10 @@ function renderJob() {
   const meta = $("jobMeta");
   const statusLine = $("jobStatus");
   const picker = $("jobPicker");
-  const canMark = Boolean(currentJob);
-  $("markApplied").disabled = !canMark;
-  $("markSkipped").disabled = !canMark;
+  // Applied stays enabled with nothing linked: that path records the page as a
+  // new job rather than making you hunt for it in the list.
+  $("markApplied").disabled = false;
+  $("markSkipped").disabled = !currentJob;
 
   if (jobs.length === 0) {
     title.textContent = "No jobs loaded.";
@@ -249,28 +252,33 @@ function renderJob() {
 
   if (currentJob) {
     const s = effectiveStatus(currentJob);
+    const via = {
+      tab: "linked from the posting you opened",
+      url: "matched this page",
+      picked: "picked by you",
+      created: "recorded from this page",
+    }[linkedVia] || "";
     title.textContent = currentJob.title;
     title.className = "";
     meta.textContent = `${currentJob.company}${currentJob.location ? " · " + currentJob.location : ""}`;
-    statusLine.innerHTML = `<span class="badge ${s}">${s}</span>`;
+    statusLine.innerHTML =
+      `<span class="badge ${s}">${s}</span>` +
+      (via ? ` <span class="muted" style="font-size:11px;">${via}</span>` : "");
   } else {
-    title.textContent = "Couldn't match this page to a job.";
+    title.textContent = "No job linked to this tab.";
     title.className = "muted";
-    meta.textContent = "Pick the job you're applying to:";
+    meta.textContent = "“Applied” will record this page as a new job.";
     statusLine.textContent = "";
   }
 
-  // Manual picker always available as a fallback / override.
-  picker.hidden = false;
-  picker.innerHTML =
-    `<option value="">— pick a job —</option>` +
-    jobs
-      .map(
-        (j) =>
-          `<option value="${j.id}" ${currentJob && j.id === currentJob.id ? "selected" : ""}>` +
-          `${j.title} — ${j.company}</option>`,
-      )
-      .join("");
+  // The list is 60+ entries — only worth showing when there's nothing linked,
+  // and then as an override rather than the primary path.
+  picker.hidden = Boolean(currentJob);
+  if (!picker.hidden) {
+    picker.innerHTML =
+      `<option value="">— or pick an existing job —</option>` +
+      jobs.map((j) => `<option value="${j.id}">${j.title} — ${j.company}</option>`).join("");
+  }
 }
 
 /** Show the hub's tailoring context (flavor, fit, PDF to attach) for a job. */
@@ -291,25 +299,85 @@ async function showTailored(job) {
     `<a href="${base}${ctx.pdfUrl}" target="_blank" rel="noreferrer">⬇ Download tailored PDF to attach</a>`;
 }
 
+// The current URL only matches while you're still on the posting. Once you
+// click Apply you're on an ATS the hub has never seen, so the authoritative
+// answer is the tab's binding, held by the background worker from the moment
+// you opened the posting. URL matching is just the fast path.
 async function refreshCurrentJob() {
-  const url = await activeTabUrl();
-  currentJob = matchJobForUrl(url, jobs) ?? currentJob;
+  const tab = await activeTab();
+  const link = tab?.id
+    ? await chrome.runtime.sendMessage({ type: "job:linked", tabId: tab.id }).catch(() => null)
+    : null;
+
+  currentJob =
+    (link && jobs.find((j) => j.id === link.jobId)) ||
+    matchJobForUrl(tab?.url, jobs) ||
+    currentJob;
+
+  linkedVia = link ? "tab" : currentJob ? "url" : null;
   renderJob();
   await showTailored(currentJob);
 }
 
+/** Remember a manual pick for this tab, so it survives the rest of the flow. */
+async function bindJobToTab(job) {
+  const tab = await activeTab();
+  if (!tab?.id || !job) return;
+  await chrome.runtime.sendMessage({
+    type: "job:link", tabId: tab.id,
+    job: { jobId: job.id, title: job.title, company: job.company },
+  }).catch(() => {});
+}
+
 $("jobPicker").addEventListener("change", async (e) => {
   currentJob = jobs.find((j) => j.id === e.target.value) ?? null;
+  linkedVia = currentJob ? "picked" : null;
+  await bindJobToTab(currentJob);
   renderJob();
   await showTailored(currentJob);
 });
 
+/**
+ * Record an application. If nothing is linked, the page itself is the job —
+ * scrape it and create the record first, so applications made outside the
+ * search pipeline still get tracked instead of silently vanishing.
+ */
 async function mark(status) {
-  if (!currentJob) return;
+  if (!currentJob) {
+    const created = await trackCurrentPageAsJob();
+    if (!created) return;
+  }
   statuses[currentJob.id] = await setStatus(currentJob.id, status);
   renderJob();
   const synced = await postStatusToHub(currentJob.id, status); // write-back to the hub
   statusEl.textContent = `Marked "${currentJob.title}" as ${status}${synced ? " (synced to Hub)" : ""}.`;
+}
+
+async function trackCurrentPageAsJob() {
+  statusEl.textContent = "Recording this job…";
+  try {
+    const tab = await activeTab();
+    if (!tab?.id) throw new Error("No active tab.");
+    const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: scrapeJobFromPage });
+    const data = r?.result;
+    if (!data?.title) throw new Error("couldn't read a job from this page");
+    const base = await getHubUrl();
+    const res = await fetch(`${base}/api/jobs/add`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...data, trackOnly: true }), // no tailoring on this path
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || `hub ${res.status}`);
+    try { await syncFromHub(); jobs = await loadJobs(); } catch { /* keep the old list */ }
+    currentJob = jobs.find((x) => x.id === j.jobId) ?? null;
+    if (!currentJob) throw new Error("job created but not found after sync");
+    linkedVia = "created";
+    await bindJobToTab(currentJob);
+    return true;
+  } catch (err) {
+    statusEl.textContent = `Couldn't record this job: ${err.message}. Pick it manually below.`;
+    return false;
+  }
 }
 $("markApplied").addEventListener("click", () => mark("applied"));
 $("markSkipped").addEventListener("click", () => mark("skipped"));
@@ -380,60 +448,6 @@ function scrapeJobFromPage() {
   return { url: location.href, title, company, description: description.slice(0, 20000) };
 }
 
-function collectEmptyFields() {
-  const out = [];
-  let k = 0;
-  const skip = ["hidden", "password", "file", "submit", "button", "checkbox", "radio", "email", "tel", "url"];
-  const visible = (el) => el.offsetParent !== null || getComputedStyle(el).position === "fixed";
-  const labelOf = (el) => {
-    let l = el.getAttribute("aria-label") || "";
-    if (!l && el.id) l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent || "";
-    if (!l) l = el.closest("label")?.textContent || "";
-    if (!l) l = el.placeholder || el.name || "";
-    return l.replace(/\s+/g, " ").trim();
-  };
-  document.querySelectorAll("input, textarea, select").forEach((el) => {
-    const tag = el.tagName.toLowerCase();
-    if (el.disabled || el.readOnly) return;
-    if (tag !== "select" && skip.includes((el.type || "").toLowerCase())) return;
-    if (!visible(el)) return;
-    if ((el.value || "").trim() !== "") return; // only empty fields
-    const label = labelOf(el);
-    if (!label) return;
-    const key = "sa" + k++;
-    el.setAttribute("data-sa-key", key);
-    out.push({
-      key, label,
-      type: tag === "textarea" ? "textarea" : tag === "select" ? "select" : "text",
-      options: tag === "select" ? [...el.options].map((o) => o.text.trim()).filter(Boolean) : undefined,
-    });
-  });
-  return out;
-}
-
-function fillAnswers(byKey) {
-  let filled = 0;
-  const setVal = (el, value) => {
-    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")?.set;
-    if (setter) setter.call(el, value); else el.value = value;
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-  };
-  for (const [key, value] of Object.entries(byKey)) {
-    if (!value) continue;
-    const el = document.querySelector(`[data-sa-key="${key}"]`);
-    if (!el) continue;
-    if (el.tagName.toLowerCase() === "select") {
-      const opt = [...el.options].find((o) => o.text.trim().toLowerCase() === String(value).toLowerCase());
-      if (opt) { el.value = opt.value; el.dispatchEvent(new Event("change", { bubbles: true })); filled++; }
-    } else if ((el.value || "").trim() === "") {
-      setVal(el, value);
-      filled++;
-    }
-  }
-  return filled;
-}
-
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -466,26 +480,19 @@ $("addJob").addEventListener("click", async () => {
   }
 });
 
+// Handed to the background worker rather than run here: a Claude call takes
+// seconds, and closing the popup destroys this page — which used to abort the
+// request mid-flight and lose the answers. The background finishes regardless;
+// this just reflects progress while the popup happens to be open.
 $("fillClaude").addEventListener("click", async () => {
   statusEl.textContent = "Collecting empty fields…";
   try {
     const tab = await activeTab();
     if (!tab?.id) throw new Error("No active tab.");
-    const [c] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: collectEmptyFields });
-    const fields = c?.result || [];
-    if (fields.length === 0) { statusEl.textContent = "No empty fields left to fill."; return; }
-    const base = await getHubUrl();
-    statusEl.textContent = `Asking Claude about ${fields.length} field(s)…`;
-    const res = await fetch(`${base}/api/answer`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: tab.url, fields }),
+    const res = await chrome.runtime.sendMessage({
+      type: "claude:fill", tabId: tab.id, url: tab.url,
     });
-    const answers = (await res.json()).answers || {};
-    const byKey = {};
-    for (const f of fields) if (answers[f.label]) byKey[f.key] = answers[f.label];
-    if (Object.keys(byKey).length === 0) { statusEl.textContent = "Claude had no confident answers."; return; }
-    const [f] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: fillAnswers, args: [byKey] });
-    statusEl.textContent = `Claude filled ${f?.result ?? 0} field(s). Review before submitting.`;
+    if (res?.message) statusEl.textContent = res.message;
   } catch (err) {
     statusEl.textContent = `Claude fill failed: ${err.message}`;
   }

@@ -56,6 +56,11 @@ export async function POST(req: Request) {
     if (t) db.insert(s.jobTags).values({ jobId: id, tagId: t.id, weight: 1 }).onConflictDoNothing().run();
   }
 
+  // trackOnly: the extension recording an application to a posting that was
+  // never in the pipeline. Create and tag it so the application is tracked, but
+  // skip tailoring — that is a slower, deliberate action the user asks for.
+  if (body.trackOnly) return corsJson({ ok: true, jobId: id, tracked: true });
+
   // Pick the flavor: caller's choice, else best tag overlap.
   const tagSet = new Set(names);
   const flavors = db.select().from(s.flavors).all();
