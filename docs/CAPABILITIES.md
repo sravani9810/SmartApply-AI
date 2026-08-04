@@ -132,6 +132,19 @@ npm run schedule:status -w @smartapply/job-search   # is it loaded?
   - **Radio groups** — matched by fieldset legend / ARIA (work authorization,
     sponsorship, gender, veteran, disability EEO questions).
   - **Checkboxes** — only affirmative "yes" answers are ticked.
+- **Curated Answer Bank (structured Q&A)** — a set of question → answer pairs
+  the user maintains ahead of time, for the free-form fields no profile covers
+  (notice period, salary expectation, sponsorship, "how did you hear about us"):
+  - Each entry has a **question**, optional **aliases/keywords**, a **type**
+    (`text` / `textarea` / `select` / `radio` / `checkbox`), a **value**, and
+    optional **options**. Aliases let one entry match many form phrasings; the
+    **longest-matching phrase wins** so a specific alias beats a generic one.
+  - **Fill precedence per field:** profile field match → curated answer bank →
+    auto-learned answer.
+  - **Never auto-ticks consent** — the consent/terms guard runs first, and a
+    curated checkbox is ticked only on an explicit affirmative value.
+  - Edited in the **Options page** and persisted to/from `data/answers.json`
+    (see below).
 - **Learn & Remember (local, private)** — the headline capability for unknown
   fields:
   - **Captures what you type** on application forms, keyed by the field's label
@@ -157,6 +170,7 @@ npm run schedule:status -w @smartapply/job-search   # is it loaded?
 | Data | Store | Scope |
 | --- | --- | --- |
 | **Profile** (name, email, phone, …) | `chrome.storage.sync` | Synced across your signed-in Chrome profiles |
+| **Curated answer bank** (Q&A entries) | `chrome.storage.local` | This machine; exportable to `data/answers.json` |
 | **Learned answers** (unknown fields) | `chrome.storage.local` | **This machine only — never synced, never sent anywhere** |
 | **Jobs + statuses** | `chrome.storage.local` | This machine |
 
@@ -166,6 +180,22 @@ Inspect the raw data from any tab's DevTools console:
 chrome.storage.local.get("learned").then(console.log)   // learned answers
 chrome.storage.sync.get("profile").then(console.log)    // your profile
 ```
+
+### Options page & data file (`answers.json`)
+
+- **Options page** (`options.html`, opened via the popup's *Manage answer bank &
+  profile…* button or `chrome://extensions` → Details → Extension options) — a
+  full-tab UI to edit the profile and add/edit/delete answer-bank entries.
+- **`answers.json`** is the user's complete "application data" file — profile +
+  curated Q&A in one `AnswerBank` (shape in `@smartapply/shared`). It lives in
+  the repo's `data/` folder.
+  - **Export** builds `answers.json` from the current profile + answers and
+    downloads it (save it into `data/`).
+  - **Import** loads an `answers.json` back into the extension.
+  - **Sandbox note:** a browser extension can't silently read a repo file, so
+    sync is via explicit Import/Export — the same pattern as `jobs-export.json`.
+    `data/answers.json` is gitignored (personal); `data/answers.sample.json` is
+    the committed template to start from.
 
 ### Fills only — two hard browser limits (not bugs)
 
@@ -211,8 +241,11 @@ The Part 1 side of this contract (emitting `jobs-export.json`, importing
   DOM + iframe traversal, learn-and-remember (`remember()`), auto-fill-on-open,
   `window.__smartApplyFill`.
 - `popup.html` / `popup.js` — profile editor, settings toggles, Fill/Submit,
-  learned-answer controls, job-context panel.
-- `profile.js` — `PROFILE_FIELDS`, `DEFAULT_SETTINGS`, load/save helpers.
+  learned-answer controls, job-context panel, Options-page link.
+- `options.html` / `options.js` — full-tab profile + answer-bank editor with
+  `answers.json` import/export.
+- `profile.js` — `PROFILE_FIELDS`, `DEFAULT_SETTINGS`, load/save helpers, and
+  answer-bank load/save + `answers.json` serialization.
 - `jobs.js` — job store: import/load, URL matching, status tracking.
 - `background.js` — seeds default settings on install.
 - `manifest.json` — permissions `storage`, `activeTab`, `scripting`, `tabs`.
@@ -223,7 +256,8 @@ The Part 1 side of this contract (emitting `jobs-export.json`, importing
 
 **Package:** `packages/shared` — common TypeScript types used by both parts:
 `JobPosting`, `ApplicationStatus`, `JobBoardConnector`, `JobsExport` /
-`JobExportEntry`, `StatusUpdate` / `StatusUpdatesFile`, `MatchResult`.
+`JobExportEntry`, `StatusUpdate` / `StatusUpdatesFile`, `AnswerBank` /
+`AnswerEntry`, `MatchResult`.
 
 ## Privacy summary
 

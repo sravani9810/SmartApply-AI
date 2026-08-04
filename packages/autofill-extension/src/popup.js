@@ -31,7 +31,7 @@ async function autofill(submit) {
     return;
   }
   const profile = await loadProfile(); // synced from the Hub
-  const { learned = {} } = await chrome.storage.local.get("learned");
+  const { learned = {}, answers = [] } = await chrome.storage.local.get(["learned", "answers"]);
   if (Object.values(profile).filter(Boolean).length === 0) {
     statusEl.textContent = "No personal info yet — click “Sync personal info from Hub”.";
     return;
@@ -46,8 +46,8 @@ async function autofill(submit) {
     });
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
-      args: [profile, learned, submit],
-      func: (p, l, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, l, s) : { filled: 0 }),
+      args: [profile, learned, answers, submit],
+      func: (p, l, a, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, l, a, s) : { filled: 0 }),
     });
     const filled = results.reduce((n, r) => n + (r.result?.filled || 0), 0);
     const unknown = results.reduce((n, r) => n + (r.result?.unknown || 0), 0);
@@ -111,6 +111,8 @@ async function showLearnedCount() {
     ? `${n} learned answer${n === 1 ? "" : "s"} (used to fill unknown fields).`
     : "No learned answers yet — fill a form and it'll remember.";
 }
+
+$("openOptions").addEventListener("click", () => chrome.runtime.openOptionsPage());
 
 $("clearLearned").addEventListener("click", async () => {
   await chrome.storage.local.set({ learned: {} });

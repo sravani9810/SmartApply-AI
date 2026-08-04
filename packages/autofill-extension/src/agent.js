@@ -178,11 +178,13 @@ export async function runAutopilot(tabId, base, settings, hooks = {}) {
     });
 
     // 1. Deterministic pass — instant, from the synced profile + learned answers.
+    // Answers are passed as null so the content script uses its own curated
+    // answer bank, which it keeps fresh from storage. Never submit here.
     onProgress({ step, phase: "fill", message: `Step ${step}: filling known fields…` });
     const detResult = await chrome.scripting.executeScript({
       target: { tabId, frameIds: [frameId] },
-      args: [base.profile, base.learned, false],
-      func: (p, l, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, l, s) : { filled: 0 }),
+      args: [base.profile, base.learned, null, false],
+      func: (p, l, a, s) => (window.__smartApplyFill ? window.__smartApplyFill(p, l, a, s) : { filled: 0 }),
     }).then((r) => r?.[0]?.result).catch(() => null);
     totalFilled += detResult?.filled || 0;
 

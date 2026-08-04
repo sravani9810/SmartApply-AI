@@ -20,7 +20,7 @@ Everything runs on your own machine. Nothing leaves your computer except the
 
 ```
 packages/
-  shared/              # common types (JobPosting, JobsExport, StatusUpdates, MatchResult…)
+  shared/              # common types (JobPosting, JobsExport, AnswerBank, MatchResult…)
   job-search/          # Part 1 — discovery + Excel/Sheets logging + scheduler
   autofill-extension/  # Part 2 — Chrome MV3 extension
   resume-matcher/      # Part 3 — resume ↔ JD matching
@@ -63,6 +63,13 @@ Loads the jobs Part 1 found (`jobs-export.json`), matches the current tab to a
 posting, tracks Applied/Skipped status, and auto-fills — or Fill & Submits —
 application forms from your saved profile. Handles text, radio, checkbox, and
 native `<select>` fields, and **learns** answers to unknown fields locally.
+
+Beyond the fixed profile, a curated **answer bank** (`data/answers.json`, edited
+in the extension's **Options page**) answers the free-form questions
+applications ask — notice period, sponsorship, "how did you hear about us" — with
+aliases so one entry matches many phrasings. Fill precedence is profile → answer
+bank → learned; consent boxes are never auto-ticked. Start from the committed
+`data/answers.sample.json`.
 
 ```
 1. npm install                       # builds shared types the extension imports
