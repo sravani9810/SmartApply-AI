@@ -30,7 +30,27 @@ export async function syncProfileFromHub() {
   if (!res.ok) throw new Error(`Hub returned ${res.status} (is it running at ${base}?)`);
   const { fields = {}, learned = {} } = await res.json();
   await chrome.storage.sync.set({ profile: fields });
-  await chrome.storage.local.set({ learned });
+
+  // Learning writes to storage.local first and posts to the hub best-effort, so
+  // any answer learned while the hub was down exists only here. Overwriting the
+  // local copy with the hub's would silently discard those, so push them up
+  // first and merge — hub values win on conflict, since that's where you edit.
+  const { learned: localLearned = {} } = await chrome.storage.local.get("learned");
+  const localOnly = {};
+  for (const [label, value] of Object.entries(localLearned)) {
+    if (!(label in learned) && typeof value === "string" && value.trim()) localOnly[label] = value;
+  }
+  let pushed = 0;
+  if (Object.keys(localOnly).length) {
+    try {
+      const up = await fetch(`${base}/api/learned`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: localOnly }),
+      });
+      if (up.ok) pushed = (await up.json()).recorded ?? 0;
+    } catch { /* keep them locally; the next sync will retry */ }
+  }
+  await chrome.storage.local.set({ learned: { ...localOnly, ...learned } });
 
   // Also pull the structured résumé body (best-effort) so the Auto-pilot can
   // ground answers and fill repeatable experience/education sections.
@@ -38,7 +58,8 @@ export async function syncProfileFromHub() {
 
   return {
     fieldCount: Object.values(fields).filter(Boolean).length,
-    learnedCount: Object.keys(learned).length,
+    learnedCount: Object.keys({ ...localOnly, ...learned }).length,
+    pushedCount: pushed,
     experienceCount: resume?.experiences?.length ?? 0,
     educationCount: resume?.education?.length ?? 0,
   };

@@ -74,14 +74,16 @@ async function showProfileInfo() {
 $("syncProfile").addEventListener("click", async () => {
   statusEl.textContent = "Syncing personal info…";
   try {
-    const { fieldCount, learnedCount, experienceCount, educationCount } = await syncProfileFromHub();
+    const { fieldCount, learnedCount, pushedCount, experienceCount, educationCount } =
+      await syncProfileFromHub();
     await showProfileInfo();
     await showLearnedCount();
     const resumeBit = experienceCount || educationCount
       ? `, ${experienceCount} experience(s) + ${educationCount} education entr(ies)`
       : "";
+    const pushedBit = pushedCount ? ` (sent ${pushedCount} local answer(s) up)` : "";
     statusEl.textContent =
-      `Synced ${fieldCount} field(s), ${learnedCount} learned answer(s)${resumeBit} from Hub.`;
+      `Synced ${fieldCount} field(s), ${learnedCount} learned answer(s)${resumeBit} from Hub${pushedBit}.`;
   } catch (err) {
     statusEl.textContent = `Sync failed: ${err.message}`;
   }

@@ -152,6 +152,45 @@ export async function duplicateResume(id: string) {
 }
 
 /** Save the applicant's application-form fields (the hub profile page). */
+/**
+ * Learned answers are what the extension fills unmatched fields with, so a bad
+ * one silently repeats itself on every future application. These let you fix or
+ * forget an answer instead of clearing all of them.
+ *
+ * The label is the matching key: renaming it changes which question the answer
+ * responds to, so it is a delete + re-insert rather than an update.
+ */
+export async function saveLearnedAnswer(formData: FormData) {
+  const { recordLearnedAnswer, renameLearnedAnswer } = await import("./queries");
+  const label = String(formData.get("label") ?? "").trim();
+  const newLabel = String(formData.get("newLabel") ?? "").trim();
+  const value = String(formData.get("value") ?? "").trim();
+  if (!label) return;
+
+  if (newLabel && newLabel !== label) {
+    renameLearnedAnswer(label, newLabel);
+    if (value) recordLearnedAnswer(newLabel, value);
+  } else if (value) {
+    recordLearnedAnswer(label, value);
+  }
+  revalidatePath("/profile");
+}
+
+export async function removeLearnedAnswer(formData: FormData) {
+  const { deleteLearnedAnswer } = await import("./queries");
+  const label = String(formData.get("label") ?? "").trim();
+  if (label) deleteLearnedAnswer(label);
+  revalidatePath("/profile");
+}
+
+export async function addLearnedAnswer(formData: FormData) {
+  const { recordLearnedAnswer } = await import("./queries");
+  const label = String(formData.get("label") ?? "").trim();
+  const value = String(formData.get("value") ?? "").trim();
+  if (label && value) recordLearnedAnswer(label, value);
+  revalidatePath("/profile");
+}
+
 export async function saveApplicantFields(formData: FormData) {
   const { APPLICANT_FIELD_KEYS } = await import("../lib/applicantFields");
   const fields: Record<string, string> = {};

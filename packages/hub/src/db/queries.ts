@@ -219,6 +219,35 @@ export function recordLearnedAnswer(label: string, value: string) {
     .run();
 }
 
+/** Learned answers as rows, newest edit first — for the editable table. */
+export function getLearnedAnswerRows() {
+  return db.select().from(s.learnedAnswers).orderBy(sql`${s.learnedAnswers.updatedAt} desc`).all();
+}
+
+/** Forget one learned answer. */
+export function deleteLearnedAnswer(label: string) {
+  db.delete(s.learnedAnswers).where(eq(s.learnedAnswers.label, label.trim())).run();
+}
+
+/**
+ * Rename the question a learned answer is keyed on. The label is the matching
+ * key, so this is a delete + re-insert; it silently does nothing if the new
+ * label collides with an existing entry.
+ */
+export function renameLearnedAnswer(oldLabel: string, newLabel: string) {
+  const from = oldLabel.trim();
+  const to = newLabel.trim();
+  if (!from || !to || from === to) return;
+  const row = db.select().from(s.learnedAnswers).where(eq(s.learnedAnswers.label, from)).get();
+  if (!row) return;
+  const clash = db.select().from(s.learnedAnswers).where(eq(s.learnedAnswers.label, to)).get();
+  if (clash) return;
+  db.delete(s.learnedAnswers).where(eq(s.learnedAnswers.label, from)).run();
+  db.insert(s.learnedAnswers)
+    .values({ label: to, value: row.value, updatedAt: new Date().toISOString() })
+    .run();
+}
+
 /** Résumé library rows (composed résumés), newest first, optionally by domain. */
 export function getResumes(domain?: string) {
   const rows = db.select({
