@@ -5,8 +5,17 @@ import { ResumeData } from "../../types/cv_types";
  * (no heavy inline bolding), category-labelled skills. Tuned as the base
  * résumé for product companies with a full-stack tech stack.
  *
- * Source of truth: revanth_resume_product.docx (2026-07-23). This is the
- * current default; see `data/cv_data.ts`.
+ * Source of truth: revanth_resume_product.pdf (2026-07-27) — reconciled
+ * against that file, so this matches the résumé actually being sent.
+ *
+ * This is the base résumé in both senses: `data/cv_data.ts` re-exports it as
+ * the app/PDF default, and the hub snapshots it to
+ * `packages/hub/src/lib/baseResume.json` as the master that job-specific
+ * résumés are edited from. Re-run the snapshot after editing this file:
+ *
+ *   npx tsx -e "import {data} from './packages/resume-builder/data/variants/product_fullstack'; \
+ *     process.stdout.write(JSON.stringify(data, null, 2))" \
+ *     > packages/hub/src/lib/baseResume.json
  */
 export const data: ResumeData = {
   personal: {
@@ -167,7 +176,6 @@ export const data: ResumeData = {
         "Assisted in developing and maintaining RESTful APIs and backend services to retrieve, transform, and expose data from enterprise systems for reporting applications.",
         "Built and enhanced responsive user interfaces using Angular, HTML5, CSS3, JavaScript, and Bootstrap, implementing features such as filtering, sorting, and data visualization for business users.",
         "Wrote and optimized SQL queries and supported Oracle and PostgreSQL databases, improving data retrieval performance and ensuring accurate reporting.",
-        "Participated in implementing data processing and reporting logic within Java-based backend services for large business datasets.",
       ],
     },
   ],
